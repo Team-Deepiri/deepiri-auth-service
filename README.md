@@ -1,4 +1,4 @@
-# User Service
+# Authentication Service
 
 Handles user management and authentication.
 
@@ -21,4 +21,6 @@ See `api-server/services/userService.js` and `api-server/routes/userRoutes.js`
 ## Migration
 Extract from `api-server/` to this independent service.
 
+
 # deepiri-auth-service
+
