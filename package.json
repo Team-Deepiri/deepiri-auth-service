@@ -12,6 +12,7 @@
   "dependencies": {
     "@deepiri/shared-utils": "file:../shared-utils",
     "@influxdata/influxdb-client": "^1.33.2",
+    "@types/jsonwebtoken": "^9.0.5",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
