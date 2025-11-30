@@ -1,30 +1,8 @@
-import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 import { Request, Response } from 'express';
 import { createLogger } from '@deepiri/shared-utils';
+import prisma from './db';
 
 const logger = createLogger('time-series-service');
-
-interface IProgressPoint extends Document {
-  userId: Types.ObjectId;
-  timestamp: Date;
-  metric: string;
-  value: number;
-  metadata?: Record<string, any>;
-}
-
-const ProgressPointSchema = new Schema<IProgressPoint>({
-  userId: { type: Schema.Types.ObjectId, required: true, index: true },
-  timestamp: { type: Date, required: true, index: true },
-  metric: { type: String, required: true, index: true },
-  value: { type: Number, required: true },
-  metadata: Schema.Types.Mixed
-}, {
-  timestamps: false
-});
-
-ProgressPointSchema.index({ timestamp: 1 }, { expireAfterSeconds: 63072000 });
-
-const ProgressPoint: Model<IProgressPoint> = mongoose.model<IProgressPoint>('ProgressPoint', ProgressPointSchema);
 
 class TimeSeriesService {
   async recordData(req: Request, res: Response): Promise<void> {
@@ -36,12 +14,7 @@ class TimeSeriesService {
         return;
       }
 
-      const point = await this.recordProgress(
-        new Types.ObjectId(userId),
-        metric,
-        value,
-        metadata || {}
-      );
+      const point = await this.recordProgress(userId, metric, value, metadata || {});
       res.json(point);
     } catch (error) {
       logger.error('Error recording data:', error);
@@ -60,7 +33,7 @@ class TimeSeriesService {
       }
 
       const series = await this.getProgressSeries(
-        new Types.ObjectId(userId),
+        userId,
         metric as string,
         new Date(startDate as string),
         new Date(endDate as string)
@@ -72,17 +45,18 @@ class TimeSeriesService {
     }
   }
 
-  private async recordProgress(userId: Types.ObjectId, metric: string, value: number, metadata: Record<string, any> = {}): Promise<IProgressPoint> {
+  private async recordProgress(userId: string, metric: string, value: number, metadata: Record<string, any> = {}) {
     try {
-      const point = new ProgressPoint({
-        userId,
-        timestamp: new Date(),
-        metric,
-        value,
-        metadata
+      const point = await prisma.progressPoint.create({
+        data: {
+          userId,
+          metricType: metric,
+          value,
+          timestamp: new Date(),
+          metadata: metadata as any
+        }
       });
 
-      await point.save();
       logger.debug('Progress point recorded', { userId, metric, value });
       return point;
     } catch (error) {
@@ -91,20 +65,26 @@ class TimeSeriesService {
     }
   }
 
-  private async getProgressSeries(userId: Types.ObjectId, metric: string, startDate: Date, endDate: Date) {
+  private async getProgressSeries(userId: string, metric: string, startDate: Date, endDate: Date) {
     try {
-      const query = {
-        userId,
-        metric,
-        timestamp: {
-          $gte: startDate,
-          $lte: endDate
+      const points = await prisma.progressPoint.findMany({
+        where: {
+          userId,
+          metricType: metric,
+          timestamp: {
+            gte: startDate,
+            lte: endDate
+          }
+        },
+        select: {
+          timestamp: true,
+          value: true,
+          metadata: true
+        },
+        orderBy: {
+          timestamp: 'asc'
         }
-      };
-
-      const points = await ProgressPoint.find(query)
-        .sort({ timestamp: 1 })
-        .select('timestamp value metadata');
+      });
 
       return points;
     } catch (error) {
@@ -115,4 +95,3 @@ class TimeSeriesService {
 }
 
 export default new TimeSeriesService();
-
