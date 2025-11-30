@@ -1,17 +1,7 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
-// User model
-const UserSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  name: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now }
-});
-
-const User = mongoose.models.User || mongoose.model('User', UserSchema);
+import prisma from './db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -25,7 +15,10 @@ class AuthService {
         return;
       }
 
-      const user = await User.findOne({ email });
+      const user = await prisma.user.findUnique({
+        where: { email }
+      });
+
       if (!user) {
         res.status(401).json({ error: 'Invalid credentials' });
         return;
@@ -37,8 +30,14 @@ class AuthService {
         return;
       }
 
+      // Update last login
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() }
+      });
+
       const token = jwt.sign(
-        { userId: user._id, email: user.email },
+        { userId: user.id, email: user.email },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -47,7 +46,7 @@ class AuthService {
         success: true,
         token,
         user: {
-          id: user._id,
+          id: user.id,
           email: user.email,
           name: user.name
         }
@@ -67,23 +66,26 @@ class AuthService {
         return;
       }
 
-      const existingUser = await User.findOne({ email });
+      const existingUser = await prisma.user.findUnique({
+        where: { email }
+      });
+
       if (existingUser) {
         res.status(409).json({ error: 'An account with this email already exists. Please use a different email or try logging in.' });
         return;
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
-      const user = new User({
-        email,
-        password: hashedPassword,
-        name
+      const user = await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name
+        }
       });
 
-      await user.save();
-
       const token = jwt.sign(
-        { userId: user._id, email: user.email },
+        { userId: user.id, email: user.email },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -92,7 +94,7 @@ class AuthService {
         success: true,
         token,
         user: {
-          id: user._id,
+          id: user.id,
           email: user.email,
           name: user.name
         }
@@ -114,7 +116,10 @@ class AuthService {
       const token = authHeader.substring(7);
       const decoded = jwt.verify(token, JWT_SECRET) as any;
 
-      const user = await User.findById(decoded.userId);
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId }
+      });
+
       if (!user) {
         res.status(401).json({ error: 'Invalid token' });
         return;
@@ -123,7 +128,7 @@ class AuthService {
       res.json({
         success: true,
         user: {
-          id: user._id,
+          id: user.id,
           email: user.email,
           name: user.name
         }
@@ -176,4 +181,3 @@ class AuthService {
 }
 
 export default new AuthService();
-

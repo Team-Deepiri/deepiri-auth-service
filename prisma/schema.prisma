@@ -1,0 +1,157 @@
+// Prisma Schema for Auth Service
+// PostgreSQL database schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Users table
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  email         String   @unique @db.VarChar(255)
+  password      String   @db.VarChar(255)
+  name          String   @db.VarChar(255)
+  avatarUrl     String?  @map("avatar_url") @db.Text
+  bio           String?  @db.Text
+  status        String   @default("active") @db.VarChar(50)
+  emailVerified Boolean  @default(false) @map("email_verified")
+  lastLoginAt   DateTime? @map("last_login_at") @db.Timestamp
+  metadata      Json?    @default("{}")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp
+  updatedBy     String?  @map("updated_by") @db.Uuid
+
+  // Relations
+  skillTree     SkillTree?
+  socialConnections SocialConnection[] @relation("UserConnections")
+  connectedTo   SocialConnection[] @relation("ConnectedToUser")
+  progressPoints ProgressPoint[]
+  sessions      Session[]
+  userRoles     UserRole[]
+
+  @@index([email])
+  @@index([status])
+  @@map("users")
+}
+
+// Skill Trees table
+model SkillTree {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @unique @map("user_id") @db.Uuid
+  skillPoints   Int      @default(0) @map("skill_points")
+  totalSkillLevel Int    @default(0) @map("total_skill_level")
+  lastUpdated   DateTime @default(now()) @map("last_updated") @db.Timestamp
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp
+
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills        Skill[]
+
+  @@index([userId])
+  @@map("skill_trees")
+}
+
+// Skills table (individual skills for each skill tree)
+model Skill {
+  id          String    @id @default(uuid()) @db.Uuid
+  skillTreeId String    @map("skill_tree_id") @db.Uuid
+  skillName   String    @map("skill_name") @db.VarChar(100)
+  level       Int       @default(0)
+  xp          Int       @default(0)
+  unlocked    Boolean   @default(false)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp
+
+  // Relations
+  skillTree   SkillTree @relation(fields: [skillTreeId], references: [id], onDelete: Cascade)
+
+  @@unique([skillTreeId, skillName])
+  @@index([skillTreeId])
+  @@map("skills")
+}
+
+// Social Connections table
+model SocialConnection {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  connectedUserId String   @map("connected_user_id") @db.Uuid
+  connectionType  String   @default("friend") @map("connection_type") @db.VarChar(50)
+  status          String   @default("pending") @db.VarChar(50)
+  mutualConnections Int?   @default(0) @map("mutual_connections")
+  sharedChallenges  Int?   @default(0) @map("shared_challenges")
+  collaborationScore Float? @default(0) @map("collaboration_score")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp
+
+  // Relations
+  user            User     @relation("UserConnections", fields: [userId], references: [id], onDelete: Cascade)
+  connectedUser   User     @relation("ConnectedToUser", fields: [connectedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, connectedUserId])
+  @@index([userId])
+  @@index([connectedUserId])
+  @@map("social_connections")
+}
+
+// Progress Points table (time-series data)
+model ProgressPoint {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  metricType String   @map("metric_type") @db.VarChar(100)
+  value     Float
+  timestamp DateTime  @default(now()) @db.Timestamp
+  metadata  Json?
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([timestamp(sort: Desc)])
+  @@index([metricType])
+  @@map("progress_points")
+}
+
+// Sessions table
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  token     String    @unique @db.VarChar(500)
+  ipAddress String?   @map("ip_address") @db.Inet
+  userAgent String?   @map("user_agent") @db.Text
+  expiresAt DateTime  @map("expires_at") @db.Timestamp
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// User Roles (many-to-many)
+model UserRole {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  roleId    String    @map("role_id") @db.Uuid
+  grantedBy String?   @map("granted_by") @db.Uuid
+  grantedAt DateTime  @default(now()) @map("granted_at") @db.Timestamp
+  expiresAt DateTime? @map("expires_at") @db.Timestamp
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([expiresAt])
+  @@map("user_roles")
+}
+

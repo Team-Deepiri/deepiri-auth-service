@@ -1,63 +1,17 @@
-import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 import { Request, Response } from 'express';
 import { createLogger } from '@deepiri/shared-utils';
+import prisma from './db';
 
 const logger = createLogger('social-graph-service');
 
 type ConnectionType = 'friend' | 'follower' | 'following' | 'teammate' | 'rival';
 type ConnectionStatus = 'pending' | 'accepted' | 'blocked';
 
-interface ISocialConnection extends Document {
-  userId: Types.ObjectId;
-  connectedUserId: Types.ObjectId;
-  connectionType: ConnectionType;
-  status: ConnectionStatus;
-  metadata: {
-    mutualConnections?: number;
-    sharedChallenges?: number;
-    collaborationScore?: number;
-  };
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const SocialConnectionSchema = new Schema<ISocialConnection>({
-  userId: { type: Schema.Types.ObjectId, required: true, index: true },
-  connectedUserId: { type: Schema.Types.ObjectId, required: true, index: true },
-  connectionType: { 
-    type: String, 
-    enum: ['friend', 'follower', 'following', 'teammate', 'rival'],
-    default: 'friend'
-  },
-  status: {
-    type: String,
-    enum: ['pending', 'accepted', 'blocked'],
-    default: 'pending'
-  },
-  metadata: {
-    mutualConnections: Number,
-    sharedChallenges: Number,
-    collaborationScore: Number
-  },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-}, {
-  timestamps: true
-});
-
-SocialConnectionSchema.index({ userId: 1, connectedUserId: 1 }, { unique: true });
-
-const SocialConnection: Model<ISocialConnection> = mongoose.model<ISocialConnection>('SocialConnection', SocialConnectionSchema);
-
 class SocialGraphService {
   async getFriends(req: Request, res: Response): Promise<void> {
     try {
       const { userId } = req.params;
-      const connections = await this.getConnections(
-        new Types.ObjectId(userId),
-        'friend',
-        'accepted'
-      );
+      const connections = await this.getConnections(userId, 'friend', 'accepted');
       res.json(connections);
     } catch (error) {
       logger.error('Error getting friends:', error);
@@ -75,10 +29,7 @@ class SocialGraphService {
         return;
       }
 
-      const connection = await this.sendFriendRequest(
-        new Types.ObjectId(userId),
-        new Types.ObjectId(targetUserId)
-      );
+      const connection = await this.sendFriendRequest(userId, targetUserId);
       res.json(connection);
     } catch (error) {
       logger.error('Error adding friend:', error);
@@ -86,13 +37,16 @@ class SocialGraphService {
     }
   }
 
-  async sendFriendRequest(userId: Types.ObjectId, targetUserId: Types.ObjectId) {
+  async sendFriendRequest(userId: string, targetUserId: string) {
     try {
-      const existing = await SocialConnection.findOne({
-        $or: [
-          { userId, connectedUserId: targetUserId },
-          { userId: targetUserId, connectedUserId: userId }
-        ]
+      // Check for existing connection
+      const existing = await prisma.socialConnection.findFirst({
+        where: {
+          OR: [
+            { userId, connectedUserId: targetUserId },
+            { userId: targetUserId, connectedUserId: userId }
+          ]
+        }
       });
 
       if (existing) {
@@ -105,14 +59,25 @@ class SocialGraphService {
         return { message: 'Request already pending', connection: existing };
       }
 
-      const connection = new SocialConnection({
-        userId,
-        connectedUserId: targetUserId,
-        connectionType: 'friend',
-        status: 'pending'
+      const connection = await prisma.socialConnection.create({
+        data: {
+          userId,
+          connectedUserId: targetUserId,
+          connectionType: 'friend',
+          status: 'pending'
+        },
+        include: {
+          connectedUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatarUrl: true
+            }
+          }
+        }
       });
 
-      await connection.save();
       await this._updateMetadata(userId, targetUserId);
 
       logger.info('Friend request sent', { userId, targetUserId });
@@ -123,21 +88,36 @@ class SocialGraphService {
     }
   }
 
-  private async getConnections(userId: Types.ObjectId, connectionType: ConnectionType | null = null, status: ConnectionStatus = 'accepted') {
+  private async getConnections(userId: string, connectionType: ConnectionType | null = null, status: ConnectionStatus = 'accepted') {
     try {
-      const query: any = { userId, status };
+      const where: any = { userId, status };
       if (connectionType) {
-        query.connectionType = connectionType;
+        where.connectionType = connectionType;
       }
 
-      const connections = await SocialConnection.find(query)
-        .populate('connectedUserId', 'name email avatar')
-        .sort({ updatedAt: -1 });
+      const connections = await prisma.socialConnection.findMany({
+        where,
+        include: {
+          connectedUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatarUrl: true
+            }
+          }
+        },
+        orderBy: { updatedAt: 'desc' }
+      });
 
       return connections.map(conn => ({
-        user: conn.connectedUserId,
+        user: conn.connectedUser,
         connectionType: conn.connectionType,
-        metadata: conn.metadata,
+        metadata: {
+          mutualConnections: conn.mutualConnections,
+          sharedChallenges: conn.sharedChallenges,
+          collaborationScore: conn.collaborationScore
+        },
         connectedAt: conn.createdAt
       }));
     } catch (error) {
@@ -146,49 +126,60 @@ class SocialGraphService {
     }
   }
 
-  private async _updateMetadata(userId1: Types.ObjectId, userId2: Types.ObjectId): Promise<void> {
+  private async _updateMetadata(userId1: string, userId2: string): Promise<void> {
     try {
       const mutual = await this.getMutualConnections(userId1, userId2);
       
-      await SocialConnection.updateMany(
-        {
-          $or: [
+      await prisma.socialConnection.updateMany({
+        where: {
+          OR: [
             { userId: userId1, connectedUserId: userId2 },
             { userId: userId2, connectedUserId: userId1 }
           ]
         },
-        {
-          $set: {
-            'metadata.mutualConnections': mutual.length
-          }
+        data: {
+          mutualConnections: mutual.length
         }
-      );
+      });
     } catch (error) {
       logger.error('Error updating metadata:', error);
     }
   }
 
-  private async getMutualConnections(userId1: Types.ObjectId, userId2: Types.ObjectId) {
+  private async getMutualConnections(userId1: string, userId2: string) {
     try {
-      const user1Connections = await SocialConnection.find({
-        userId: userId1,
-        status: 'accepted'
-      }).select('connectedUserId');
+      const user1Connections = await prisma.socialConnection.findMany({
+        where: {
+          userId: userId1,
+          status: 'accepted'
+        },
+        select: { connectedUserId: true }
+      });
 
-      const user2Connections = await SocialConnection.find({
-        userId: userId2,
-        status: 'accepted'
-      }).select('connectedUserId');
+      const user2Connections = await prisma.socialConnection.findMany({
+        where: {
+          userId: userId2,
+          status: 'accepted'
+        },
+        select: { connectedUserId: true }
+      });
 
-      const user1Ids = new Set(user1Connections.map(c => c.connectedUserId.toString()));
-      const user2Ids = new Set(user2Connections.map(c => c.connectedUserId.toString()));
+      const user1Ids = new Set(user1Connections.map(c => c.connectedUserId));
+      const user2Ids = new Set(user2Connections.map(c => c.connectedUserId));
 
       const mutualIds = [...user1Ids].filter(id => user2Ids.has(id));
 
-      const User = mongoose.model('User');
-      const mutualConnections = await User.find({
-        _id: { $in: mutualIds }
-      }).select('name email avatar');
+      const mutualConnections = await prisma.user.findMany({
+        where: {
+          id: { in: mutualIds }
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatarUrl: true
+        }
+      });
 
       return mutualConnections;
     } catch (error) {
@@ -199,4 +190,3 @@ class SocialGraphService {
 }
 
 export default new SocialGraphService();
-
