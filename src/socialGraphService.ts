@@ -110,7 +110,7 @@ class SocialGraphService {
         orderBy: { updatedAt: 'desc' }
       });
 
-      return connections.map(conn => ({
+      return connections.map((conn: typeof connections[0]) => ({
         user: conn.connectedUser,
         connectionType: conn.connectionType,
         metadata: {
@@ -164,8 +164,8 @@ class SocialGraphService {
         select: { connectedUserId: true }
       });
 
-      const user1Ids = new Set(user1Connections.map(c => c.connectedUserId));
-      const user2Ids = new Set(user2Connections.map(c => c.connectedUserId));
+      const user1Ids = new Set(user1Connections.map((c: { connectedUserId: string }) => c.connectedUserId));
+      const user2Ids = new Set(user2Connections.map((c: { connectedUserId: string }) => c.connectedUserId));
 
       const mutualIds = [...user1Ids].filter(id => user2Ids.has(id));
 
