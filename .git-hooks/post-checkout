@@ -1,0 +1,30 @@
+#!/bin/sh
+
+# Automatically install and configure hooks
+# This runs on every checkout, ensuring hooks are always active
+
+# Install hooks from .git-hooks to .git/hooks if needed
+if [ -d ".git-hooks" ]; then
+    mkdir -p .git/hooks
+    for hook in .git-hooks/*; do
+        if [ -f "$hook" ] && [ -x "$hook" ]; then
+            hook_name=$(basename "$hook")
+            # Only copy if missing or outdated
+            if [ ! -f ".git/hooks/$hook_name" ] || [ ".git/hooks/$hook_name" -ot "$hook" ]; then
+                cp "$hook" ".git/hooks/$hook_name"
+                chmod +x ".git/hooks/$hook_name"
+            fi
+        fi
+    done
+fi
+
+# Configure hooksPath to use .git-hooks
+CURRENT_HOOKS_PATH="$(git config core.hooksPath)"
+if [ -z "$CURRENT_HOOKS_PATH" ] || [ "$CURRENT_HOOKS_PATH" != ".git-hooks" ]; then
+    git config core.hooksPath .git-hooks
+    if [ -f ".git-hooks/pre-push" ]; then
+        echo "🔧 Git hooks automatically configured (hooksPath = .git-hooks)"
+        echo "✔ You are now protected from pushing to 'main' or 'dev'."
+    fi
+fi
+
