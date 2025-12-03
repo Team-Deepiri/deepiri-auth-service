@@ -68,7 +68,7 @@ class SkillTreeService {
       
       // Convert to expected format
       const skillsObj: Record<string, any> = {};
-      skillTree.skills.forEach(skill => {
+      skillTree.skills.forEach((skill: any) => {
         skillsObj[skill.skillName] = {
           level: skill.level,
           xp: skill.xp,
