@@ -6,8 +6,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
+    "predev": "prisma generate",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "test": "jest"
+    "test": "jest",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@deepiri/shared-utils": "file:../shared-utils",
