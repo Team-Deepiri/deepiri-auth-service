@@ -7,18 +7,23 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT" || exit 0
 
 # Install hooks from .git-hooks to .git/hooks if needed
+# NOTE: For submodules, .git is usually a FILE, not a directory
+# We only create .git/hooks if .git is actually a directory
 if [ -d ".git-hooks" ]; then
-    mkdir -p .git/hooks
-    for hook in .git-hooks/*; do
-        if [ -f "$hook" ] && [ -x "$hook" ]; then
-            hook_name=$(basename "$hook")
-            # Only copy if missing or outdated
-            if [ ! -f ".git/hooks/$hook_name" ] || [ ".git/hooks/$hook_name" -ot "$hook" ]; then
-                cp "$hook" ".git/hooks/$hook_name"
-                chmod +x ".git/hooks/$hook_name"
+    # Only create .git/hooks if .git is actually a directory (not a file)
+    if [ -d ".git" ] && [ ! -f ".git" ]; then
+        mkdir -p .git/hooks
+        for hook in .git-hooks/*; do
+            if [ -f "$hook" ] && [ -x "$hook" ]; then
+                hook_name=$(basename "$hook")
+                # Only copy if missing or outdated
+                if [ ! -f ".git/hooks/$hook_name" ] || [ ".git/hooks/$hook_name" -ot "$hook" ]; then
+                    cp "$hook" ".git/hooks/$hook_name"
+                    chmod +x ".git/hooks/$hook_name"
+                fi
             fi
-        fi
-    done
+        done
+    fi
 fi
 
 # Configure hooksPath to use .git-hooks
