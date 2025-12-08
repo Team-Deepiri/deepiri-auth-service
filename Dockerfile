@@ -1,7 +1,7 @@
 # Build shared-utils first
 FROM node:18-slim AS shared-utils-builder
 WORKDIR /shared-utils
-COPY shared/deepiri-shared-utils/package*.json ./
+COPY shared/deepiri-shared-utils/package.json ./
 COPY shared/deepiri-shared-utils/tsconfig.json ./
 COPY shared/deepiri-shared-utils/src ./src
 # Add retry logic for network issues
@@ -21,8 +21,8 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y openssl ca-certificates curl dumb-init && rm -rf /var/lib/apt/lists/*
 
-# Copy package files
-COPY backend/deepiri-auth-service/package*.json ./
+# Copy package files (avoid copying lockfile here to prevent stale local paths)
+COPY backend/deepiri-auth-service/package.json ./
 COPY backend/deepiri-auth-service/tsconfig.json ./
 
 # Copy Prisma schema before npm install (needed for postinstall script)
