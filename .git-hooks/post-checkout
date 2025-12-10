@@ -83,11 +83,12 @@ sync_hooks_to_submodule() {
     git config core.hooksPath .git-hooks
     
     # Copy .gitconfig to submodule if it exists in main repo
-    if [ -f "$REPO_ROOT/.gitconfig" ]; then
-        cp "$REPO_ROOT/.gitconfig" "$submodule_path/.gitconfig"
-    fi
-    
+    # Make sure the submodule directory exists before copying
     cd "$REPO_ROOT" || return
+    if [ -f "$REPO_ROOT/.gitconfig" ] && [ -d "$submodule_path" ]; then
+        # Use full path to ensure we copy to the correct location
+        cp "$REPO_ROOT/.gitconfig" "$REPO_ROOT/$submodule_path/.gitconfig" 2>/dev/null || true
+    fi
 }
 
 # Sync hooks to all submodules listed in .gitmodules
