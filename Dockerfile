@@ -29,7 +29,7 @@ COPY backend/deepiri-auth-service/tsconfig.json ./
 COPY backend/deepiri-auth-service/prisma ./prisma
 
 # Copy built shared-utils to a temp location
-COPY --from=shared-utils-builder /shared-utils /tmp/shared-utils
+COPY --from=shared-utils-builder /shared-utils /shared-utils
 
 # Install shared-utils as a local file dependency first, then install other dependencies
 # Add retry logic for network issues
@@ -37,9 +37,9 @@ RUN npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-timeout 300000 && \
-    npm install --legacy-peer-deps file:/tmp/shared-utils || \
-    (sleep 10 && npm install --legacy-peer-deps file:/tmp/shared-utils) || \
-    (sleep 20 && npm install --legacy-peer-deps file:/tmp/shared-utils) && \
+    npm install --legacy-peer-deps file:/shared-utils || \
+    (sleep 10 && npm install --legacy-peer-deps file:/shared-utils) || \
+    (sleep 20 && npm install --legacy-peer-deps file:/shared-utils) && \
     npm install --legacy-peer-deps || \
     (sleep 10 && npm install --legacy-peer-deps) || \
     (sleep 20 && npm install --legacy-peer-deps) && \
@@ -52,8 +52,7 @@ COPY backend/deepiri-auth-service/src ./src
 RUN npx prisma generate || true
 
 # Build TypeScript
-RUN npm run build && \
-    rm -rf /tmp/* /var/tmp/*
+RUN npm run build
 
 # Create non-root user and set up directories
 RUN groupadd -r nodejs -g 1001 && \
