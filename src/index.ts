@@ -10,6 +10,7 @@ const router: Router = express.Router();
 // Auth routes
 router.post('/auth/login', (req: Request, res: Response) => authService.login(req, res));
 router.post('/auth/register', (req: Request, res: Response) => authService.register(req, res));
+router.post('/auth/google', (req: Request, res: Response) => authService.googleLogin(req, res));
 router.get('/auth/verify', (req: Request, res: Response) => authService.verify(req, res));
 router.post('/auth/refresh', (req: Request, res: Response) => authService.refresh(req, res));
 router.post('/auth/logout', (req: Request, res: Response) => authService.logout(req, res));
