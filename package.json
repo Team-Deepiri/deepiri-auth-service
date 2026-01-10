@@ -12,7 +12,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@deepiri/shared-utils": "file:../shared-utils",
+    "@deepiri/shared-utils": "file:../platform-services/shared/deepiri-shared-utils",
     "@influxdata/influxdb-client": "^1.33.2",
     "@prisma/client": "^5.7.0",
     "@types/jsonwebtoken": "^9.0.5",
