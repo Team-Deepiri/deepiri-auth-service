@@ -1,4 +1,5 @@
-import express, { Express, Request, Response, ErrorRequestHandler } from 'express';
+import express, { Express, Request, Response, ErrorRequestHandler, NextFunction } from 'express';
+import { randomUUID} from 'crypto';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
@@ -24,22 +25,25 @@ const logger = winston.createLogger({
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+
+// Parse CORS origins from environment variable (comma-separated)
+const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173').split(',');
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+  origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-request-id']
 }));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Debug middleware to log incoming requests
-app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.path}`, {
-    headers: req.headers,
-    bodyExists: !!req.body,
-    bodyKeys: req.body ? Object.keys(req.body) : []
-  });
+// Request ID middleware for correlation tracking
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const requestId = req.headers['x-request-id'] as string || randomUUID();
+  (req as any).requestId = requestId;
+  res.setHeader('x-request-id', requestId);
   next();
 });
 
