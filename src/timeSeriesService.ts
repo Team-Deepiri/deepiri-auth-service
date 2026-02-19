@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { createLogger } from '@deepiri/shared-utils';
+import { secureLog } from '@deepiri/shared-utils';
 import prisma from './db';
 
 const logger = createLogger('time-series-service');
@@ -17,7 +18,7 @@ class TimeSeriesService {
       const point = await this.recordProgress(userId, metric, value, metadata || {});
       res.json(point);
     } catch (error) {
-      logger.error('Error recording data:', error);
+      secureLog('error', 'Error recording data:', error);
       res.status(500).json({ error: 'Failed to record data' });
     }
   }
@@ -40,7 +41,7 @@ class TimeSeriesService {
       );
       res.json(series);
     } catch (error) {
-      logger.error('Error getting data:', error);
+      secureLog('error', 'Error getting data:', error);
       res.status(500).json({ error: 'Failed to get data' });
     }
   }
@@ -60,7 +61,7 @@ class TimeSeriesService {
       logger.debug('Progress point recorded', { userId, metric, value });
       return point;
     } catch (error) {
-      logger.error('Error recording progress:', error);
+      secureLog('error', 'Error recording progress:', error);
       throw error;
     }
   }
@@ -88,7 +89,7 @@ class TimeSeriesService {
 
       return points;
     } catch (error) {
-      logger.error('Error getting progress series:', error);
+      secureLog('error', 'Error getting progress series:', error);
       throw error;
     }
   }

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { createLogger } from '@deepiri/shared-utils';
+import { secureLog } from '@deepiri/shared-utils';
 import prisma from './db';
 
 const logger = createLogger('skill-tree-service');
@@ -23,7 +24,7 @@ class SkillTreeService {
       const skillTree = await this.getOrCreateSkillTree(userId);
       res.json(skillTree);
     } catch (error) {
-      logger.error('Error getting skill tree:', error);
+      secureLog('error', 'Error getting skill tree:', error);
       res.status(500).json({ error: 'Failed to get skill tree' });
     }
   }
@@ -41,7 +42,7 @@ class SkillTreeService {
       const result = await this.awardSkillXP(userId, skillName, xpAmount);
       res.json(result);
     } catch (error) {
-      logger.error('Error upgrading skill:', error);
+      secureLog('error', 'Error upgrading skill:', error);
       res.status(500).json({ error: 'Failed to upgrade skill' });
     }
   }
@@ -85,7 +86,7 @@ class SkillTreeService {
         lastUpdated: skillTree.lastUpdated
       };
     } catch (error) {
-      logger.error('Error getting skill tree:', error);
+      secureLog('error', 'Error getting skill tree:', error);
       throw error;
     }
   }
@@ -166,7 +167,7 @@ class SkillTreeService {
         skillPoints: skillTree.skillPoints + (leveledUp ? 1 : 0)
       };
     } catch (error) {
-      logger.error('Error awarding skill XP:', error);
+      secureLog('error', 'Error awarding skill XP:', error);
       throw error;
     }
   }
