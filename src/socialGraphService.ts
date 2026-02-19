@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { createLogger } from '@deepiri/shared-utils';
+import { secureLog } from '@deepiri/shared-utils';
 import prisma from './db';
 
 const logger = createLogger('social-graph-service');
@@ -14,7 +15,7 @@ class SocialGraphService {
       const connections = await this.getConnections(userId, 'friend', 'accepted');
       res.json(connections);
     } catch (error) {
-      logger.error('Error getting friends:', error);
+      secureLog('error', 'Error getting friends:', error);
       res.status(500).json({ error: 'Failed to get friends' });
     }
   }
@@ -32,7 +33,7 @@ class SocialGraphService {
       const connection = await this.sendFriendRequest(userId, targetUserId);
       res.json(connection);
     } catch (error) {
-      logger.error('Error adding friend:', error);
+      secureLog('error', 'Error adding friend:', error);
       res.status(500).json({ error: 'Failed to add friend' });
     }
   }
@@ -80,10 +81,10 @@ class SocialGraphService {
 
       await this._updateMetadata(userId, targetUserId);
 
-      logger.info('Friend request sent', { userId, targetUserId });
+      secureLog('info', 'Friend request sent', { userId, targetUserId });
       return connection;
     } catch (error) {
-      logger.error('Error sending friend request:', error);
+      secureLog('error', 'Error sending friend request:', error);
       throw error;
     }
   }
@@ -121,7 +122,7 @@ class SocialGraphService {
         connectedAt: conn.createdAt
       }));
     } catch (error) {
-      logger.error('Error getting connections:', error);
+      secureLog('error', 'Error getting connections:', error);
       throw error;
     }
   }
@@ -142,7 +143,7 @@ class SocialGraphService {
         }
       });
     } catch (error) {
-      logger.error('Error updating metadata:', error);
+      secureLog('error', 'Error updating metadata:', error);
     }
   }
 
@@ -183,7 +184,7 @@ class SocialGraphService {
 
       return mutualConnections;
     } catch (error) {
-      logger.error('Error getting mutual connections:', error);
+      secureLog('error', 'Error getting mutual connections:', error);
       throw error;
     }
   }

@@ -3,7 +3,7 @@ import { randomUUID} from 'crypto';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import winston from 'winston';
+import { secureLog } from '@deepiri/shared-utils';
 import routes from './index';
 import { connectDatabase } from './db';
 
@@ -11,15 +11,6 @@ dotenv.config();
 
 const app: Express = express();
 const PORT: number = parseInt(process.env.PORT || '5001', 10);
-
-// Logger
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.json(),
-  transports: [
-    new winston.transports.Console({ format: winston.format.simple() })
-  ]
-});
 
 // Middleware
 app.use(helmet({
@@ -50,7 +41,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // PostgreSQL connection via Prisma
 connectDatabase()
   .catch((err: Error) => {
-    logger.error('Auth Service: Failed to connect to PostgreSQL', err);
+    secureLog('error', 'Auth Service: Failed to connect to PostgreSQL', err);
     process.exit(1);
   });
 
@@ -63,13 +54,13 @@ app.use('/', routes);
 
 // Error handler
 const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
-  logger.error('Auth Service error:', err);
+  secureLog('error', 'Auth Service error:', err);
   res.status(500).json({ error: 'Internal server error' });
 };
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  logger.info(`Auth Service running on port ${PORT}`);
+  secureLog('info', `Auth Service running on port ${PORT}`);
 });
 
 export default app;
