@@ -1,8 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { ApiKey } from '../models/ApiKey.model';
-import { ApiKeyCachePayload, ApiKeyScope } from 'deepiri-shared-utils/src/types';
-import { hashApiKey }        from 'deepiri-shared-utils/src/cryptoUtils';
-import { createRedisClient } from 'deepiri-shared-utils/src/redisClient';
+import { ApiKeyCachePayload, ApiKeyScope } from '@deepiri/shared-utils/src/types';
+import { hashApiKey }        from '@deepiri/shared-utils/src/cryptoUtils';
+import { createRedisClient } from '@deepiri/shared-utils/src/redisClient';
 
 const router = Router();
 const redis  = createRedisClient();

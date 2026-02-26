@@ -6,7 +6,7 @@ import mongoose, {
   HydratedDocument,
 } from 'mongoose';
 
-export type ApiKeyScope = 'ingestion:write' | 'analytics:read' | 'admin:all';
+import { ApiKeyScope, ApiKeyCachePayload } from '@deepiri/shared-utils/src/types';
 
 export interface IApiKey {
   hashedKey:       string;
@@ -18,13 +18,6 @@ export interface IApiKey {
   lastUsedAt:      Date | null;
   createdAt?:      Date; 
   updatedAt?:      Date;
-}
-
-export interface ApiKeyCachePayload {
-  serviceAccountId: string;
-  ownerId:          string;
-  scopes:           ApiKeyScope[];
-  label:            string;
 }
 
 interface IApiKeyMethods {
