@@ -12,10 +12,35 @@ import { body, validationResult, ValidationChain } from 'express-validator';
 import { logger } from '../utils/logger';
 import { sanitizeObject } from '../utils/sanitizers';
 
+interface ValidationOptions {
+  allowedBodyFields?: string[];
+}
+
+const sanitizeValue = (value: unknown): unknown => {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(item));
+  }
+
+  if (value && typeof value === 'object') {
+    const sanitizedRecord: Record<string, unknown> = {};
+    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      sanitizedRecord[key] = sanitizeValue(nestedValue);
+    }
+    return sanitizedRecord;
+  }
+
+  return value;
+};
+
 // Common validation rules
 export const commonValidations = {
   //Email validation: list common rules to reuse for validating email addresses
   email: body('email')
+    .trim()
     .isEmail()
     .normalizeEmail()
     .withMessage('Invalid email format')
@@ -42,6 +67,8 @@ export const commonValidations = {
   string: (field: string, maxLength: number = 1000) =>
     body(field)
       .trim()
+      .notEmpty()
+      .withMessage(`${field} is required`)
       .isLength({ max: maxLength })
       .withMessage(`${field} must be less than ${maxLength} characters`)
       .escape(),
@@ -50,6 +77,7 @@ export const commonValidations = {
   //length limits prevent DoS attacks
   url: (field: string) =>
     body(field)
+      .trim()
       .isURL({ protocols: ['http', 'https'] })
       .withMessage('Invalid URL format')
       .isLength({ max: 2048 })
@@ -59,6 +87,7 @@ export const commonValidations = {
   // shows error message otherwise
   integer: (field: string, min: number = 0, max: number = Number.MAX_SAFE_INTEGER) =>
     body(field)
+      .toInt()
       .isInt({ min, max })
       .withMessage(`${field} must be an integer between ${min} and ${max}`),
 
@@ -77,22 +106,39 @@ export const commonValidations = {
 };
 
 // Validation middleware
-export const validate = (validations: ValidationChain[]) => {
+export const validate = (validations: ValidationChain[], options: ValidationOptions = {}) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     // Run all validations
     await Promise.all(validations.map(validation => validation.run(req)));
 
+    const requestId = (req as any).requestId || 'unknown';
+
+    const bodyValidationErrors: Array<{ path: string; msg: string; value: unknown }> = [];
+    if (options.allowedBodyFields && req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+      const unknownFields = Object.keys(req.body).filter(
+        (field) => !options.allowedBodyFields?.includes(field)
+      );
+
+      if (unknownFields.length > 0) {
+        bodyValidationErrors.push({
+          path: 'body',
+          msg: `Unknown fields provided: ${unknownFields.join(', ')}`,
+          value: unknownFields,
+        });
+      }
+    }
+
     //collect any errors found
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      const requestId = (req as any).requestId || 'unknown';
+    if (!errors.isEmpty() || bodyValidationErrors.length > 0) {
+      const allErrors = [...errors.array(), ...bodyValidationErrors];
 
       //log the failure
       logger.warn('Validation failed', {
         requestId,
         path: req.path,
         method: req.method,
-        errors: errors.array(),
+        errors: allErrors,
       });
 
       //send error message
@@ -101,7 +147,7 @@ export const validate = (validations: ValidationChain[]) => {
         message: 'Validation failed',
         requestId,
         timestamp: new Date().toISOString(),
-        errors: errors.array().map((err) => ({
+        errors: allErrors.map((err) => ({
           field: (err as any).path || (err as any).param || (err as any).type || 'unknown',
           message: err.msg,
           value: (err as any).value,
@@ -112,6 +158,14 @@ export const validate = (validations: ValidationChain[]) => {
     // Sanitize request body after validation passes
     if (req.body && typeof req.body === 'object') {
       req.body = sanitizeObject(req.body);
+    }
+
+    if (req.query && typeof req.query === 'object') {
+      req.query = sanitizeValue(req.query) as Request['query'];
+    }
+
+    if (req.params && typeof req.params === 'object') {
+      req.params = sanitizeValue(req.params) as Request['params'];
     }
 
     next();

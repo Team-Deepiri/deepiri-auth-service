@@ -2,18 +2,18 @@
 //ts uses these definitions to autocomplete, warn if using it incorrectly,
 //and show what parameters are required
 
-import {Request, Response, NextFunction} from 'express';
-import {ValidationChain} from 'express-validator';
+import { Request, Response, NextFunction } from 'express';
+import { ValidationChain } from 'express-validator';
 
 declare module './middleware/inputValidation' {
   //Validation error response structure
-  interface ValidationError{
+  interface ValidationError {
     field: string; //which field failed
     message: string; //error message
     value: any; //what value was submitted
   }
 
- interface ValidationErrorResponse{
+  interface ValidationErrorResponse {
     success: false; //false when validation fails
     message: 'Validation failed'; //error message
     requestId: string; //unique request ID for tracking
@@ -31,12 +31,17 @@ declare module './middleware/inputValidation' {
     integer: (field: string, min?: number, max?: number) => ValidationChain;
     array: (field: string, maxItems?: number) => ValidationChain;
   }
-  
- // Validate middleware function signature
- //the validate function takes an array of validators and returns a middleware
- //function
+
+  // Validate middleware function signature
+  interface ValidationOptions {
+    allowedBodyFields?: string[];
+  }
+
+  //the validate function takes an array of validators and returns a middleware
+  //function
   type ValidateMiddleware = (
-    validations: ValidationChain[]
+    validations: ValidationChain[],
+    options?: ValidationOptions
   ) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
 
   // Exports
