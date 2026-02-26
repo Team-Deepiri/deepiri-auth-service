@@ -1,11 +1,11 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { ApiKey } from '../models/ApiKey.model';
-import { ApiKeyCachePayload, ApiKeyScope } from '@deepiri/shared-utils/src/types';
-import { hashApiKey }        from '@deepiri/shared-utils/src/cryptoUtils';
-import { createRedisClient } from '@deepiri/shared-utils/src/redisClient';
+import { PrismaClient } from '@prisma/client';
+import { ApiKeyCachePayload } from '@deepiri/shared-utils';
+import { createRedisClient } from '@deepiri/shared-utils';
 
-const router = Router();
-const redis  = createRedisClient();
+const router  = Router();
+const prisma  = new PrismaClient();
+const redis   = createRedisClient();
 
 const CACHE_TTL_SECONDS = 300;
 
@@ -15,7 +15,6 @@ function requireInternalSecret(
   next: NextFunction
 ): void {
   const secret = req.headers['x-internal-secret'] as string | undefined;
-
   if (!secret || secret !== process.env.INTERNAL_SERVICE_SECRET) {
     console.warn('[AuthService/internal] Rejected — bad or missing internal secret.');
     res.status(403).json({ error: 'Forbidden.' });
@@ -44,25 +43,47 @@ router.post(
     }
 
     try {
-      const apiKeyDoc = await ApiKey.findActiveByHash(hashedKey);
+      const apiKey = await prisma.apiKey.findFirst({
+        where: {
+          hashedKey,
+          revokedAt: null,
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: new Date() } },
+          ],
+        },
+      });
 
-      if (!apiKeyDoc) {
+      if (!apiKey) {
         res.status(401).json({ error: 'Invalid, expired, or revoked API key.' });
         return;
       }
 
-      const payload: ApiKeyCachePayload = apiKeyDoc.toCachePayload();
-      const cacheKey = `apikey:${hashedKey}`;
+      const payload: ApiKeyCachePayload = {
+        serviceAccountId: apiKey.id,
+        ownerId:          apiKey.ownerId,
+        scopes:           apiKey.scopes as any,
+        label:            apiKey.label,
+      };
 
-      await redis.set(cacheKey, JSON.stringify(payload), 'EX', CACHE_TTL_SECONDS);
+      await redis.set(
+        `apikey:${hashedKey}`,
+        JSON.stringify(payload),
+        'EX',
+        CACHE_TTL_SECONDS
+      );
 
-      ApiKey.findByIdAndUpdate(apiKeyDoc._id, { lastUsedAt: new Date() }).exec();
+      prisma.apiKey.update({
+        where: { id: apiKey.id },
+        data:  { lastUsedAt: new Date() },
+      }).catch(console.error);
 
       console.info(
         `[AuthService/internal] Cache MISS resolved — account: ${payload.serviceAccountId}`
       );
 
       res.status(200).json(payload);
+
     } catch (err) {
       console.error('[AuthService/internal] Validation error:', err);
       res.status(503).json({ error: 'Auth service temporarily unavailable.' });
