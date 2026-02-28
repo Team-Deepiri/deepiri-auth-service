@@ -14,7 +14,14 @@ import { sanitizeObject } from '../utils/sanitizers';
 
 interface ValidationOptions {
   allowedBodyFields?: string[];
+  allowedQueryFields?: string[];
+  allowedHeaderFields?: string[];
 }
+
+const isApplicationHeader = (headerName: string): boolean => {
+  const normalizedHeaderName = headerName.toLowerCase();
+  return normalizedHeaderName === 'authorization' || normalizedHeaderName.startsWith('x-');
+};
 
 const sanitizeValue = (value: unknown): unknown => {
   if (typeof value === 'string') {
@@ -114,6 +121,9 @@ export const validate = (validations: ValidationChain[], options: ValidationOpti
     const requestId = (req as any).requestId || 'unknown';
 
     const bodyValidationErrors: Array<{ path: string; msg: string; value: unknown }> = [];
+    const queryValidationErrors: Array<{ path: string; msg: string; value: unknown }> = [];
+    const headerValidationErrors: Array<{ path: string; msg: string; value: unknown }> = [];
+
     if (options.allowedBodyFields && req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
       const unknownFields = Object.keys(req.body).filter(
         (field) => !options.allowedBodyFields?.includes(field)
@@ -128,10 +138,46 @@ export const validate = (validations: ValidationChain[], options: ValidationOpti
       }
     }
 
+    if (options.allowedQueryFields && req.query && typeof req.query === 'object') {
+      const unknownQueryFields = Object.keys(req.query).filter(
+        (field) => !options.allowedQueryFields?.includes(field)
+      );
+
+      if (unknownQueryFields.length > 0) {
+        queryValidationErrors.push({
+          path: 'query',
+          msg: `Unknown query fields provided: ${unknownQueryFields.join(', ')}`,
+          value: unknownQueryFields,
+        });
+      }
+    }
+
+    if (options.allowedHeaderFields && req.headers && typeof req.headers === 'object') {
+      const normalizedAllowedHeaderFields = options.allowedHeaderFields.map((field) => field.toLowerCase());
+      const unknownHeaderFields = Object.keys(req.headers).filter(
+        (field) =>
+          isApplicationHeader(field) &&
+          !normalizedAllowedHeaderFields.includes(field.toLowerCase())
+      );
+
+      if (unknownHeaderFields.length > 0) {
+        headerValidationErrors.push({
+          path: 'headers',
+          msg: `Unknown headers provided: ${unknownHeaderFields.join(', ')}`,
+          value: unknownHeaderFields,
+        });
+      }
+    }
+
     //collect any errors found
     const errors = validationResult(req);
-    if (!errors.isEmpty() || bodyValidationErrors.length > 0) {
-      const allErrors = [...errors.array(), ...bodyValidationErrors];
+    if (!errors.isEmpty() || bodyValidationErrors.length > 0 || queryValidationErrors.length > 0 || headerValidationErrors.length > 0) {
+      const allErrors = [
+        ...errors.array(),
+        ...bodyValidationErrors,
+        ...queryValidationErrors,
+        ...headerValidationErrors,
+      ];
 
       //log the failure
       logger.warn('Validation failed', {

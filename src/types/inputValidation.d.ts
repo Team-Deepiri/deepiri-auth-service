@@ -35,6 +35,8 @@ declare module './middleware/inputValidation' {
   // Validate middleware function signature
   interface ValidationOptions {
     allowedBodyFields?: string[];
+    allowedQueryFields?: string[];
+    allowedHeaderFields?: string[];
   }
 
   //the validate function takes an array of validators and returns a middleware
