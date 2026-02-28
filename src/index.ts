@@ -33,7 +33,7 @@ router.get('/auth/verify',
       .withMessage('Authorization header required')
       .matches(/^Bearer\s+[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]*$/)
       .withMessage('Invalid JWT format')
-  ]),
+  ], { allowedHeaderFields: ['authorization', 'x-request-id', 'x-api-key'] }),
   (req: Request, res: Response) => authService.verify(req, res)
 );
 
@@ -54,7 +54,7 @@ router.post('/auth/logout',
       .trim()
       .notEmpty()
       .withMessage('Authorization header required')
-  ]),
+  ], { allowedHeaderFields: ['authorization', 'x-request-id', 'x-api-key'] }),
   (req: Request, res: Response) => authService.logout(req, res)
 );
 
@@ -191,7 +191,7 @@ router.post('/time-series/record',
     commonValidations.string('metric', 100),
     commonValidations.integer('value', -1000000, 1000000),
     query('timestamp').optional().trim().isISO8601().withMessage('Invalid timestamp format')
-  ], { allowedBodyFields: ['metric', 'value'] }),
+  ], { allowedBodyFields: ['metric', 'value'], allowedQueryFields: ['timestamp'] }),
   (req: Request, res: Response) => timeSeriesService.recordData(req, res)
 );
 
@@ -201,7 +201,7 @@ router.get('/time-series/:userId',
     query('metric').optional().trim().isLength({ max: 100 }).withMessage('Metric must be less than 100 characters'),
     query('startDate').optional().trim().isISO8601().withMessage('Invalid start date format'),
     query('endDate').optional().trim().isISO8601().withMessage('Invalid end date format')
-  ]),
+  ], { allowedQueryFields: ['metric', 'startDate', 'endDate'] }),
   (req: Request, res: Response) => timeSeriesService.getData(req, res)
 );
 
