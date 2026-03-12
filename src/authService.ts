@@ -2,8 +2,9 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from './db';
+import { validateSecret } from '@deepiri/shared-utils';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = validateSecret('JWT_SECRET', process.env.JWT_SECRET, 32) || '';
 
 class AuthService {
   async login(req: Request, res: Response): Promise<void> {
@@ -148,6 +149,14 @@ class AuthService {
 
       const token = authHeader.substring(7);
       const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId }
+      });
+
+      if (!user) {
+        res.status(401).json({ error: 'User not found' });
+        return;
+      }
 
       const newToken = jwt.sign(
         { userId: decoded.userId, email: decoded.email },
@@ -157,7 +166,12 @@ class AuthService {
 
       res.json({
         success: true,
-        token: newToken
+        token: newToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name
+        }
       });
     } catch (error: any) {
       res.status(401).json({ error: 'Invalid token' });

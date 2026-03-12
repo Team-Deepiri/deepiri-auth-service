@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { createLogger } from '@deepiri/shared-utils';
+import { secureLog } from '@deepiri/shared-utils';
 
 const logger = createLogger('oauth-service');
 
@@ -61,10 +62,10 @@ class OAuthService {
       };
       
       this.clients.set(clientId, client);
-      logger.info('OAuth client registered', { clientId });
+      secureLog('info', 'OAuth client registered', { clientId });
       res.json({ clientId, clientSecret });
     } catch (error) {
-      logger.error('Error registering client:', error);
+      secureLog('error', 'Error registering client:', error);
       res.status(500).json({ error: 'Failed to register client' });
     }
   }
@@ -91,7 +92,7 @@ class OAuthService {
 
       res.json({ authorizationUrl: authUrl.toString(), code });
     } catch (error) {
-      logger.error('Error in authorize:', error);
+      secureLog('error', 'Error in authorize:', error);
       res.status(500).json({ error: 'Authorization failed' });
     }
   }
@@ -154,7 +155,7 @@ class OAuthService {
         scope: authData.scopes.join(' ')
       });
     } catch (error) {
-      logger.error('Error in token exchange:', error);
+      secureLog('error', 'Error in token exchange:', error);
       res.status(500).json({ error: 'Token exchange failed' });
     }
   }
