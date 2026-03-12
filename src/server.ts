@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import winston from 'winston';
 import routes from './index';
 import { connectDatabase } from './db';
+import { bodyParserConfig, requestSizeLimiter } from './middleware/requestLimits';
 
 dotenv.config();
 
@@ -30,8 +31,11 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Request size limits (Issue 8)
+app.use(requestSizeLimiter);
+app.use(express.json(bodyParserConfig.json));
+app.use(express.urlencoded(bodyParserConfig.urlencoded));
 
 // Debug middleware to log incoming requests
 app.use((req, res, next) => {
