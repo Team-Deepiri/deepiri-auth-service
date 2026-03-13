@@ -12,7 +12,7 @@ else
     git config core.hooksPath .git-hooks
     if [ -f .git-hooks/pre-push ]; then
         chmod +x .git-hooks/pre-push
-        echo "✔ Git hooks enabled. You are now protected from pushing to 'main' or 'dev'."
+        echo "✔ Git hooks enabled. You are now protected from pushing to 'main', 'master', and branches containing 'team-dev'."
     else
         echo "⚠️  Warning: .git-hooks/pre-push not found. Make sure you're in the repository root."
         exit 1
