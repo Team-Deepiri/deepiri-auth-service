@@ -1,3 +1,4 @@
+import internalRoutes from './routes/internal.routes';
 import express, { Router, Request, Response } from 'express';
 import { validate, commonValidations } from './middleware/inputValidation';
 import { param, query, header, body } from 'express-validator';
@@ -8,7 +9,8 @@ import timeSeriesService from './timeSeriesService';
 import authService from './authService';
 
 const router: Router = express.Router();
-
+// Internal service routes
+router.use('/internal', internalRoutes);
 // Auth routes
 router.post('/auth/login',
   validate([commonValidations.email, commonValidations.password]),
