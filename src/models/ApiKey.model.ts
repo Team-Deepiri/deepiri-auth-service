@@ -80,13 +80,13 @@ const ApiKeySchema = new Schema<IApiKey, ApiKeyModel, IApiKeyMethods>(
   }
 );
 
-ApiKeySchema.method('isActive', function (): boolean {
+ApiKeySchema.method('isActive', function (this: HydratedDocument<IApiKey, IApiKeyMethods>): boolean {
   if (this.revokedAt !== null) return false;
   if (this.expiresAt !== null && this.expiresAt < new Date()) return false;
   return true;
 });
 
-ApiKeySchema.method('toCachePayload', function (): ApiKeyCachePayload {
+ApiKeySchema.method('toCachePayload', function (this: HydratedDocument<IApiKey, IApiKeyMethods>): ApiKeyCachePayload {
   return {
     serviceAccountId: (this._id as Types.ObjectId).toString(),
     ownerId:          this.ownerId.toString(),
@@ -98,6 +98,7 @@ ApiKeySchema.method('toCachePayload', function (): ApiKeyCachePayload {
 ApiKeySchema.static(
   'findActiveByHash',
   async function (
+    this: Model<IApiKey, {}, IApiKeyMethods>,
     hashedKey: string
   ): Promise<HydratedDocument<IApiKey, IApiKeyMethods> | null> {
     return this.findOne({
