@@ -1,112 +1,85 @@
-import mongoose, {
-  Document,
-  Model,
-  Schema,
-  Types,
-  HydratedDocument,
-} from 'mongoose';
-
+import prisma from '../db';
 import { ApiKeyScope, ApiKeyCachePayload } from '@deepiri/shared-utils/src/types';
+import type { ApiKey as PrismaApiKey } from '@prisma/client';
 
-export interface IApiKey {
-  hashedKey:       string;
-  label:           string;
-  ownerId:         Types.ObjectId;
-  scopes:          ApiKeyScope[];
-  revokedAt:       Date | null;
-  expiresAt:       Date | null;
-  lastUsedAt:      Date | null;
-  createdAt?:      Date; 
-  updatedAt?:      Date;
+export interface IApiKey extends PrismaApiKey {
+  scopes: string[]; // Adjusting to avoid strict TypeScript mismatch if Prisma generates string[]
 }
 
-interface IApiKeyMethods {
-  isActive():        boolean;
-  toCachePayload():  ApiKeyCachePayload;
-}
+export class ApiKeyModel {
+  private apikey: IApiKey;
 
-interface ApiKeyModel extends Model<IApiKey, {}, IApiKeyMethods> {
-  findActiveByHash(
-    hashedKey: string
-  ): Promise<HydratedDocument<IApiKey, IApiKeyMethods> | null>;
-}
-
-const ApiKeySchema = new Schema<IApiKey, ApiKeyModel, IApiKeyMethods>(
-  {
-    hashedKey: {
-      type:     String,
-      required: [true, 'hashedKey is required.'],
-      unique:   true,
-      index:    true,
-    },
-    label: {
-      type:    String,
-      trim:    true,
-      default: 'Unnamed Service Account',
-    },
-    ownerId: {
-      type:     Schema.Types.ObjectId,
-      ref:      'User',
-      required: [true, 'ownerId is required.'],
-      index:    true,
-    },
-    scopes: {
-      type:     [String],
-      enum:     ['ingestion:write', 'analytics:read', 'admin:all'] as ApiKeyScope[],
-      default:  ['ingestion:write'],
-      validate: {
-        validator: (arr: string[]): boolean =>
-          Array.isArray(arr) && arr.length > 0,
-        message: 'At least one scope is required.',
-      },
-    },
-    revokedAt: {
-      type:    Date,
-      default: null,
-    },
-    expiresAt: {
-      type:    Date,
-      default: null,
-      index:   { expireAfterSeconds: 0, sparse: true }, 
-    },
-    lastUsedAt: {
-      type:    Date,
-      default: null,
-    },
-  },
-  {
-    timestamps:  true,
-    collection:  'api_keys',
+  constructor(apikey: IApiKey) {
+    this.apikey = apikey;
   }
-);
 
-ApiKeySchema.method('isActive', function (this: HydratedDocument<IApiKey, IApiKeyMethods>): boolean {
-  if (this.revokedAt !== null) return false;
-  if (this.expiresAt !== null && this.expiresAt < new Date()) return false;
-  return true;
-});
+  // Getters for compatibility
+  get id() { return this.apikey.id; }
+  get hashedKey() { return this.apikey.hashedKey; }
+  get label() { return this.apikey.label; }
+  get ownerId() { return this.apikey.ownerId; }
+  get scopes() { return this.apikey.scopes as ApiKeyScope[]; }
+  get revokedAt() { return this.apikey.revokedAt; }
+  get expiresAt() { return this.apikey.expiresAt; }
+  get createdAt() { return this.apikey.createdAt; }
+  get updatedAt() { return this.apikey.updatedAt; }
+  get _id() { return this.apikey.id; } // Alias for any lingering Mongo _id references
 
-ApiKeySchema.method('toCachePayload', function (this: HydratedDocument<IApiKey, IApiKeyMethods>): ApiKeyCachePayload {
-  return {
-    serviceAccountId: (this._id as Types.ObjectId).toString(),
-    ownerId:          this.ownerId.toString(),
-    scopes:           this.scopes,
-    label:            this.label,
-  };
-});
+  get lastUsedAt() { return this.apikey.lastUsedAt; }
+  set lastUsedAt(val: Date | null) { this.apikey.lastUsedAt = val; }
 
-ApiKeySchema.static(
-  'findActiveByHash',
-  async function (
-    this: Model<IApiKey, {}, IApiKeyMethods>,
-    hashedKey: string
-  ): Promise<HydratedDocument<IApiKey, IApiKeyMethods> | null> {
-    return this.findOne({
-      hashedKey,
-      revokedAt: null,
-      $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+  /**
+   * Check if the API key is active.
+   */
+  isActive(): boolean {
+    if (this.revokedAt !== null) return false;
+    if (this.expiresAt !== null && this.expiresAt < new Date()) return false;
+    return true;
+  }
+
+  /**
+   * Format payload for Redis cache.
+   */
+  toCachePayload(): ApiKeyCachePayload {
+    return {
+      serviceAccountId: this.id,
+      ownerId: this.ownerId,
+      scopes: this.scopes,
+      label: this.label,
+    };
+  }
+
+  /**
+   * Save changes to the database (currently only used for lastUsedAt updates).
+   */
+  async save(): Promise<void> {
+    await prisma.apiKey.update({
+      where: { id: this.id },
+      data: {
+        lastUsedAt: this.lastUsedAt,
+      },
     });
   }
-);
 
-export const ApiKey = mongoose.model<IApiKey, ApiKeyModel>('ApiKey', ApiKeySchema);
+  /**
+   * Find an active API key by its hash.
+   */
+  static async findActiveByHash(hashedKey: string): Promise<ApiKeyModel | null> {
+    const key = await prisma.apiKey.findFirst({
+      where: {
+        hashedKey,
+        revokedAt: null,
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } }
+        ]
+      }
+    });
+
+    if (!key) return null;
+    return new ApiKeyModel(key as IApiKey);
+  }
+}
+
+// Export as ApiKey to match the old Mongoose model export
+export const ApiKey = ApiKeyModel;
