@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import routes from './index';
 import { connectDatabase } from './db';
+import { bodyParserConfig, requestSizeLimiter } from './middleware/requestLimits';
 import { logger } from './utils/logger';
 
 dotenv.config();
@@ -27,8 +28,10 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-request-id']
 }));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Request size limits (Issue 8)
+app.use(requestSizeLimiter);
+app.use(express.json(bodyParserConfig.json));
+app.use(express.urlencoded(bodyParserConfig.urlencoded));
 
 // Request ID middleware for correlation tracking
 app.use((req: Request, res: Response, next: NextFunction) => {
