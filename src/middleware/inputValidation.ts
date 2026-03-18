@@ -30,10 +30,10 @@ export const commonValidations = {
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/)
     .withMessage('Password must contain uppercase, lowercase, number, and special character'),
 
-  //User ID validation: validates MongoDB ObjectId format, makes field
+  //User ID validation: validates UUID format, makes field
   //optional for partial updates
   userId: body('userId')
-    .isMongoId()
+    .isUUID()
     .withMessage('Invalid user ID format')
     .optional(),
 

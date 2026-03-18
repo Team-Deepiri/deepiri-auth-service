@@ -33,10 +33,33 @@ model User {
   progressPoints ProgressPoint[]
   sessions      Session[]
   userRoles     UserRole[]
+  apiKeys       ApiKey[]
 
   @@index([email])
   @@index([status])
   @@map("users")
+}
+
+// API Keys table
+model ApiKey {
+  id          String    @id @default(uuid()) @db.Uuid
+  hashedKey   String    @unique @map("hashed_key") @db.VarChar(500)
+  label       String    @default("Unnamed Service Account") @db.VarChar(255)
+  ownerId     String    @map("owner_id") @db.Uuid
+  scopes      String[]  @default(["ingestion:write"])
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamp
+  expiresAt   DateTime? @map("expires_at") @db.Timestamp
+  lastUsedAt  DateTime? @map("last_used_at") @db.Timestamp
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp
+
+  // Relations
+  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([hashedKey])
+  @@index([expiresAt])
+  @@map("api_keys")
 }
 
 // Skill Trees table
