@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { ApiKeyCachePayload } from '@deepiri/shared-utils';
 import { createRedisClient } from '@deepiri/shared-utils';
+import { ApiKey } from '../models/ApiKey.model';
 
 const router  = Router();
 const prisma  = new PrismaClient();
@@ -43,28 +44,14 @@ router.post(
     }
 
     try {
-      const apiKey = await prisma.apiKey.findFirst({
-        where: {
-          hashedKey,
-          revokedAt: null,
-          OR: [
-            { expiresAt: null },
-            { expiresAt: { gt: new Date() } },
-          ],
-        },
-      });
+      const apiKey = await ApiKey.findActiveByHash(hashedKey);
 
       if (!apiKey) {
         res.status(401).json({ error: 'Invalid, expired, or revoked API key.' });
         return;
       }
 
-      const payload: ApiKeyCachePayload = {
-        serviceAccountId: apiKey.id,
-        ownerId:          apiKey.ownerId,
-        scopes:           apiKey.scopes as any,
-        label:            apiKey.label,
-      };
+      const payload: ApiKeyCachePayload = apiKey.toCachePayload();
 
       await redis.set(
         `apikey:${hashedKey}`,
@@ -73,10 +60,8 @@ router.post(
         CACHE_TTL_SECONDS
       );
 
-      prisma.apiKey.update({
-        where: { id: apiKey.id },
-        data:  { lastUsedAt: new Date() },
-      }).catch(console.error);
+      apiKey.lastUsedAt = new Date();
+      apiKey.save().catch(console.error);
 
       console.info(
         `[AuthService/internal] Cache MISS resolved — account: ${payload.serviceAccountId}`
