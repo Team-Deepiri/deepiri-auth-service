@@ -77,10 +77,8 @@ router.post(
         CACHE_TTL_SECONDS
       );
 
-      prisma.apiKey.update({
-        where: { id: apiKey.id },
-        data: { lastUsedAt: new Date() },
-      }).catch((updateError: unknown) => {
+      apiKey.lastUsedAt = new Date();
+      apiKey.save().catch((updateError: unknown) => {
         logger.error('[AuthService/internal] Failed to update lastUsedAt', { error: updateError });
       });
 
