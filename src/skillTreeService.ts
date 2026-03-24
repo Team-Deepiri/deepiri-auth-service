@@ -47,16 +47,16 @@ class SkillTreeService {
     }
   }
 
-  private async getOrCreateSkillTree(userId: string) {
+  private async getOrCreateSkillTree(userId: string, db: any = prisma) {
     try {
-      let skillTree = await prisma.skillTree.findUnique({
+      let skillTree = await db.skillTree.findUnique({
         where: { userId },
         include: { skills: true }
       });
       
       if (!skillTree) {
         // Create skill tree
-        skillTree = await prisma.skillTree.create({
+        skillTree = await db.skillTree.create({
           data: {
             userId,
             skills: {
@@ -102,72 +102,65 @@ class SkillTreeService {
 
   private async awardSkillXP(userId: string, skillName: string, xpAmount: number) {
     try {
-      const skillTree = await this.getOrCreateSkillTree(userId);
-      
-      if (!SKILLS.includes(skillName)) {
-        throw new Error(`Invalid skill: ${skillName}`);
-      }
-      
-      // Find or create skill
-      let skill = await prisma.skill.findFirst({
-        where: {
-          skillTreeId: skillTree.id,
-          skillName
+      return await prisma.$transaction(async (tx: any) => {
+        const skillTree = await this.getOrCreateSkillTree(userId, tx);
+        
+        if (!SKILLS.includes(skillName)) {
+          throw new Error(`Invalid skill: ${skillName}`);
         }
-      });
-
-      if (!skill) {
-        skill = await prisma.skill.create({
-          data: {
+        
+        let skill = await tx.skill.findFirst({
+          where: {
             skillTreeId: skillTree.id,
-            skillName,
-            level: 1,
-            xp: 0,
+            skillName
+          }
+        });
+
+        if (!skill) {
+          skill = await tx.skill.create({
+            data: {
+              skillTreeId: skillTree.id,
+              skillName,
+              level: 1,
+              xp: 0,
+              unlocked: true
+            }
+          });
+        }
+        
+        const newXp = skill.xp + xpAmount;
+        const newLevel = Math.floor(newXp / XP_PER_LEVEL) + 1;
+        const leveledUp = newLevel > skill.level && newLevel <= MAX_LEVEL;
+        
+        const updatedSkill = await tx.skill.update({
+          where: { id: skill.id },
+          data: {
+            xp: newXp,
+            level: leveledUp ? newLevel : skill.level,
             unlocked: true
           }
         });
-      }
-      
-      const newXp = skill.xp + xpAmount;
-      const newLevel = Math.floor(newXp / XP_PER_LEVEL) + 1;
-      const leveledUp = newLevel > skill.level && newLevel <= MAX_LEVEL;
-      
-      const updatedSkill = await prisma.skill.update({
-        where: { id: skill.id },
-        data: {
-          xp: newXp,
-          level: leveledUp ? newLevel : skill.level,
-          unlocked: true
-        }
-      });
 
-      if (leveledUp) {
-        await prisma.skillTree.update({
+        await tx.skillTree.update({
           where: { id: skillTree.id },
           data: {
-            skillPoints: { increment: 1 },
-            totalSkillLevel: { increment: 1 },
+            ...(leveledUp
+              ? { skillPoints: { increment: 1 }, totalSkillLevel: { increment: 1 } }
+              : {}),
             lastUpdated: new Date()
           }
         });
-      } else {
-        await prisma.skillTree.update({
-          where: { id: skillTree.id },
-          data: {
-            lastUpdated: new Date()
-          }
-        });
-      }
-      
-      return {
-        skill: skillName,
-        level: updatedSkill.level,
-        xp: updatedSkill.xp,
-        leveledUp,
-        skillPoints: skillTree.skillPoints + (leveledUp ? 1 : 0)
-      };
+        
+        return {
+          skill: skillName,
+          level: updatedSkill.level,
+          xp: updatedSkill.xp,
+          leveledUp,
+          skillPoints: skillTree.skillPoints + (leveledUp ? 1 : 0)
+        };
+      });
     } catch (error) {
-      secureLog('error', 'Error awarding skill XP:', error);
+      logger.error('Error awarding skill XP:', error);
       throw error;
     }
   }
