@@ -1,0 +1,65 @@
+name: Deepiri CI - deepiri-auth-service
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  ci:
+    name: Test, Build & Docker
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@deepiri"
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: deepiri-auth-service:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify container runs
+        run: |
+          docker run -d --name test-container deepiri-auth-service:ci
+          sleep 8
+          docker ps -a
+          docker logs test-container
+          docker inspect -f '{{.State.Running}}' test-container | grep -q true
+          docker stop test-container
