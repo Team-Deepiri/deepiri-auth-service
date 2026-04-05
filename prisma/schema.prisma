@@ -119,6 +119,7 @@ model SocialConnection {
   @@unique([userId, connectedUserId])
   @@index([userId])
   @@index([connectedUserId])
+  @@index([userId, status, connectionType, updatedAt(sort: Desc)])
   @@map("social_connections")
 }
 
@@ -137,6 +138,7 @@ model ProgressPoint {
   @@index([userId])
   @@index([timestamp(sort: Desc)])
   @@index([metricType])
+  @@index([userId, metricType, timestamp(sort: Desc)])
   @@map("progress_points")
 }
 
