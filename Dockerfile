@@ -19,7 +19,11 @@ COPY .npmrc ./
 # Copy Prisma schema before npm install (needed for postinstall script)
 COPY prisma ./prisma
 
-RUN npm ci --legacy-peer-deps && npm cache clean --force
+RUN --mount=type=secret,id=github_token \
+    echo "//npm.pkg.github.com/:_authToken=$(cat /run/secrets/github_token)" >> .npmrc && \
+    npm ci --legacy-peer-deps && \
+    npm cache clean --force && \
+    sed -i '/_authToken/d' .npmrc
 
 # Copy source files
 COPY src ./src
