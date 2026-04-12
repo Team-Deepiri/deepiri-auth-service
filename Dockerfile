@@ -6,23 +6,23 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y openssl ca-certificates curl dumb-init bash && rm -rf /var/lib/apt/lists/*
 
 # Copy K8s env loader scripts
-COPY --chown=root:root shared/scripts/load-k8s-env.sh /usr/local/bin/load-k8s-env.sh
-COPY --chown=root:root shared/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-COPY --chown=root:root shared/scripts/prisma-baseline.sh /usr/local/bin/prisma-baseline.sh
+COPY --chown=root:root scripts/load-k8s-env.sh /usr/local/bin/load-k8s-env.sh
+COPY --chown=root:root scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY --chown=root:root scripts/prisma-baseline.sh /usr/local/bin/prisma-baseline.sh
 RUN chmod +x /usr/local/bin/load-k8s-env.sh /usr/local/bin/docker-entrypoint.sh /usr/local/bin/prisma-baseline.sh
 
 # Copy package files (avoid copying lockfile here to prevent stale local paths)
-COPY backend/deepiri-auth-service/package.json ./
-COPY backend/deepiri-auth-service/tsconfig.json ./
-COPY backend/deepiri-auth-service/.npmrc ./
+COPY package.json ./
+COPY tsconfig.json ./
+COPY .npmrc ./
 
 # Copy Prisma schema before npm install (needed for postinstall script)
-COPY backend/deepiri-auth-service/prisma ./prisma
+COPY prisma ./prisma
 
 RUN npm ci --legacy-peer-deps && npm cache clean --force
 
 # Copy source files
-COPY backend/deepiri-auth-service/src ./src
+COPY src ./src
 
 # Prisma generate is already run by postinstall script, but ensure it's done
 RUN npx prisma generate || true
