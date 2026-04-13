@@ -11,8 +11,7 @@ COPY --chown=root:root scripts/docker-entrypoint.sh /usr/local/bin/docker-entryp
 COPY --chown=root:root scripts/prisma-baseline.sh /usr/local/bin/prisma-baseline.sh
 RUN chmod +x /usr/local/bin/load-k8s-env.sh /usr/local/bin/docker-entrypoint.sh /usr/local/bin/prisma-baseline.sh
 
-# Copy package files (avoid copying lockfile here to prevent stale local paths)
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY tsconfig.json ./
 COPY .npmrc ./
 
@@ -20,12 +19,12 @@ COPY .npmrc ./
 COPY prisma ./prisma
 
 RUN --mount=type=secret,id=github_token \
-    { echo "@deepiri:registry=https://npm.pkg.github.com"; \
+    { echo "@team-deepiri:registry=https://npm.pkg.github.com"; \
       echo "//npm.pkg.github.com/:_authToken=$(cat /run/secrets/github_token)"; \
     } > .npmrc && \
     npm ci --legacy-peer-deps && \
     npm cache clean --force && \
-    echo "@deepiri:registry=https://npm.pkg.github.com" > .npmrc
+    echo "@team-deepiri:registry=https://npm.pkg.github.com" > .npmrc
 
 # Copy source files
 COPY src ./src
