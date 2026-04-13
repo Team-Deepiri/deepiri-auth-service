@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { ApiKeyCachePayload } from '@deepiri/shared-utils';
-import { createRedisClient } from '@deepiri/shared-utils';
+import { ApiKeyCachePayload } from '@team-deepiri/shared-utils';
+import { createRedisClient } from '@team-deepiri/shared-utils';
 import { ApiKey } from '../models/ApiKey.model';
 
 const router  = Router();
