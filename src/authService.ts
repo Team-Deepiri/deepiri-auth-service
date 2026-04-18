@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from './db';
 import { validateSecret } from '@deepiri/shared-utils';
+import { publishUserRegistered, publishUserLogin, publishUserLogout } from './streaming/eventPublisher';
 
 const JWT_SECRET = validateSecret('JWT_SECRET', process.env.JWT_SECRET, 32) || '';
 
@@ -42,6 +43,9 @@ class AuthService {
         JWT_SECRET,
         { expiresIn: '7d' }
       );
+
+      // Fire-and-forget — streaming failure must never cause a login failure
+      publishUserLogin(user.id).catch(() => {});
 
       res.json({
         success: true,
@@ -90,6 +94,9 @@ class AuthService {
         JWT_SECRET,
         { expiresIn: '7d' }
       );
+
+      // Fire-and-forget — streaming failure must never cause a registration failure
+      publishUserRegistered(user.id, user.email).catch(() => {});
 
       res.status(201).json({
         success: true,
@@ -179,7 +186,20 @@ class AuthService {
   }
 
   async logout(req: Request, res: Response): Promise<void> {
-    // JWT is stateless, so logout is just client-side token removal
+    // JWT is stateless, so logout is just client-side token removal.
+    // Best-effort: decode token to get userId for the logout event.
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const decoded = jwt.decode(token) as any;
+        if (decoded?.userId) {
+          publishUserLogout(decoded.userId).catch(() => {});
+        }
+      }
+    } catch {
+      // Ignore — event is optional
+    }
     res.json({ success: true, message: 'Logged out successfully' });
   }
 
