@@ -22,7 +22,7 @@ jest.mock('@deepiri/shared-utils', () => ({
   },
   secureLog: jest.fn(),
   validateSecret: jest.fn().mockReturnValue('mock-secret-32-characters-long!!'),
-}));
+}), { virtual: true });
 
 describe('Auth eventPublisher', () => {
   beforeEach(() => {
