@@ -1,15 +1,5 @@
 # Build the service
-FROM node:18-slim
-
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y openssl ca-certificates curl dumb-init bash && rm -rf /var/lib/apt/lists/*
-
-# Copy K8s env loader scripts
-COPY --chown=root:root scripts/load-k8s-env.sh /usr/local/bin/load-k8s-env.sh
-COPY --chown=root:root scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-COPY --chown=root:root scripts/prisma-baseline.sh /usr/local/bin/prisma-baseline.sh
-RUN chmod +x /usr/local/bin/load-k8s-env.sh /usr/local/bin/docker-entrypoint.sh /usr/local/bin/prisma-baseline.sh
+FROM ghcr.io/team-deepiri/deepiri-base:18-slim
 
 COPY package.json package-lock.json ./
 COPY tsconfig.json ./
@@ -35,10 +25,7 @@ RUN npx prisma generate || true
 # Build TypeScript
 RUN npm run build
 
-# Create non-root user and set up directories
-RUN groupadd -r nodejs -g 1001 && \
-    useradd -r -u 1001 -g nodejs nodejs && \
-    mkdir -p logs && chown -R nodejs:nodejs /app
+RUN mkdir -p logs && chown -R nodejs:nodejs /app
 
 USER nodejs
 
