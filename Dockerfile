@@ -1,23 +1,21 @@
-# Build the service
 FROM ghcr.io/team-deepiri/deepiri-base:18-slim
 
-COPY package.json package-lock.json ./
-COPY tsconfig.json ./
-COPY .npmrc ./
+COPY backend/deepiri-auth-service/package*.json ./
+COPY backend/deepiri-auth-service/tsconfig.json ./
 
 # Copy Prisma schema before npm install (needed for postinstall script)
-COPY prisma ./prisma
+COPY backend/deepiri-auth-service/prisma ./prisma
 
 RUN --mount=type=secret,id=github_token \
     { echo "@team-deepiri:registry=https://npm.pkg.github.com"; \
       echo "//npm.pkg.github.com/:_authToken=$(cat /run/secrets/github_token)"; \
-    } > .npmrc && \
-    npm ci --legacy-peer-deps && \
-    npm cache clean --force && \
-    echo "@team-deepiri:registry=https://npm.pkg.github.com" > .npmrc
+    } > .npmrc \
+ && npm ci --legacy-peer-deps \
+ && npm cache clean --force \
+ && echo "@team-deepiri:registry=https://npm.pkg.github.com" > .npmrc
 
 # Copy source files
-COPY src ./src
+COPY backend/deepiri-auth-service/src ./src
 
 # Prisma generate is already run by postinstall script, but ensure it's done
 RUN npx prisma generate || true
