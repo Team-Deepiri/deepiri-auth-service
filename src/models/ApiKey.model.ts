@@ -1,17 +1,9 @@
 import prisma from '../db';
-import { ApiKeyScope, ApiKeyCachePayload } from '@deepiri/shared-utils';
+import { ApiKeyScope, ApiKeyCachePayload } from '@deepiri/shared-utils/src/types';
+import type { ApiKey as PrismaApiKey } from '@prisma/client';
 
-export interface IApiKey {
-  id: string;
-  hashedKey: string;
-  label: string;
-  ownerId: string;
-  scopes: string[];
-  revokedAt: Date | null;
-  expiresAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-  lastUsedAt: Date | null;
+export interface IApiKey extends PrismaApiKey {
+  scopes: string[]; // Adjusting to avoid strict TypeScript mismatch if Prisma generates string[]
 }
 
 export class ApiKeyModel {

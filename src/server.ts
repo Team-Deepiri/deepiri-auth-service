@@ -7,7 +7,6 @@ import { secureLog } from '@deepiri/shared-utils';
 import routes from './index';
 import { connectDatabase } from './db';
 import { bodyParserConfig, requestSizeLimiter } from './middleware/requestLimits';
-import { initializeEventPublisher } from './streaming/eventPublisher';
 
 dotenv.config();
 
@@ -48,11 +47,6 @@ connectDatabase()
     secureLog('error', 'Auth Service: Failed to connect to PostgreSQL', err);
     process.exit(1);
   });
-
-// Redis Streams publisher — broadcast user lifecycle events
-initializeEventPublisher().catch((err: Error) => {
-  secureLog('error', 'Auth Service: Failed to initialize event publisher', err);
-});
 
 // Routes
 app.get('/health', (req: Request, res: Response) => {
