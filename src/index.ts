@@ -2,6 +2,7 @@ import internalRoutes from './routes/internal.routes';
 import express, { Router, Request, Response } from 'express';
 import { validate, commonValidations } from './middleware/inputValidation';
 import { param, query, header, body } from 'express-validator';
+import rateLimit from 'express-rate-limit';
 import oauthService from './oauthService';
 import skillTreeService from './skillTreeService';
 import socialGraphService from './socialGraphService';
@@ -9,15 +10,26 @@ import timeSeriesService from './timeSeriesService';
 import authService from './authService';
 
 const router: Router = express.Router();
+
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+
 // Internal service routes
 router.use('/internal', internalRoutes);
 // Auth routes
 router.post('/auth/login',
+  authRateLimit,
   validate([commonValidations.email, commonValidations.password]),
   (req: Request, res: Response) => authService.login(req, res)
 );
 
 router.post('/auth/register',
+  authRateLimit,
   validate([
     commonValidations.email,
     commonValidations.password,
@@ -49,6 +61,7 @@ router.post('/auth/refresh',
   (req: Request, res: Response) => authService.refresh(req, res)
 );
 router.post('/auth/logout',
+  authRateLimit,
   validate([
     header('authorization')
       .notEmpty()
@@ -58,11 +71,13 @@ router.post('/auth/logout',
 );
 
 router.post('/auth/forgot-password',
+  authRateLimit,
   validate([commonValidations.email]),
   (req: Request, res: Response) => authService.forgotPassword(req, res)
 );
 
 router.post('/auth/reset-password',
+  authRateLimit,
   validate([
     commonValidations.string('token', 1000),
     commonValidations.password
@@ -72,6 +87,7 @@ router.post('/auth/reset-password',
 
 // OAuth routes
 router.post('/oauth/authorize',
+  authRateLimit,
   validate([
     body('clientId')
       .notEmpty()
@@ -94,6 +110,7 @@ router.post('/oauth/authorize',
 );
 
 router.post('/oauth/token',
+  authRateLimit,
   validate([
     body('grantType')
       .notEmpty()
