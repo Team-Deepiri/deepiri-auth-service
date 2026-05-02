@@ -1,0 +1,15 @@
+name: deepiri-auth-service-codeql-config
+
+# Focus analysis on maintained auth runtime and script code.
+paths:
+  - src
+  - scripts
+
+# Exclude generated/build/runtime artifact paths.
+paths-ignore:
+  - '**/node_modules/**'
+  - '**/dist/**'
+  - '**/build/**'
+  - '**/coverage/**'
+  - '**/logs/**'
+  - '**/*.min.js'
