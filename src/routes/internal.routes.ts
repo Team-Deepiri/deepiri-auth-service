@@ -83,7 +83,7 @@ router.post(
       });
 
       logger.info('[AuthService/internal] Cache MISS resolved', {
-        serviceAccountId: payload.serviceAccountId,
+        cacheWarm: true,
       });
 
       res.status(200).json(payload);
