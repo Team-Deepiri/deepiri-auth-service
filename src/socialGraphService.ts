@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { createLogger } from '@deepiri/shared-utils';
-import { secureLog } from '@deepiri/shared-utils';
+import { createLogger } from '@team-deepiri/shared-utils';
+import { secureLog } from '@team-deepiri/shared-utils';
 import prisma from './db';
 
 const logger = createLogger('social-graph-service');
@@ -40,51 +40,53 @@ class SocialGraphService {
 
   async sendFriendRequest(userId: string, targetUserId: string) {
     try {
-      // Check for existing connection
-      const existing = await prisma.socialConnection.findFirst({
-        where: {
-          OR: [
-            { userId, connectedUserId: targetUserId },
-            { userId: targetUserId, connectedUserId: userId }
-          ]
-        }
-      });
+      const connection = await prisma.$transaction(async (tx: any) => {
+        const existing = await tx.socialConnection.findFirst({
+          where: {
+            OR: [
+              { userId, connectedUserId: targetUserId },
+              { userId: targetUserId, connectedUserId: userId }
+            ]
+          }
+        });
 
-      if (existing) {
-        if (existing.status === 'blocked') {
-          throw new Error('Cannot send request to blocked user');
+        if (existing) {
+          if (existing.status === 'blocked') {
+            throw new Error('Cannot send request to blocked user');
+          }
+          if (existing.status === 'accepted') {
+            return { message: 'Already connected', connection: existing } as any;
+          }
+          return { message: 'Request already pending', connection: existing } as any;
         }
-        if (existing.status === 'accepted') {
-          return { message: 'Already connected', connection: existing };
-        }
-        return { message: 'Request already pending', connection: existing };
-      }
 
-      const connection = await prisma.socialConnection.create({
-        data: {
-          userId,
-          connectedUserId: targetUserId,
-          connectionType: 'friend',
-          status: 'pending'
-        },
-        include: {
-          connectedUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              avatarUrl: true
+        const created = await tx.socialConnection.create({
+          data: {
+            userId,
+            connectedUserId: targetUserId,
+            connectionType: 'friend',
+            status: 'pending'
+          },
+          include: {
+            connectedUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                avatarUrl: true
+              }
             }
           }
-        }
+        });
+
+        await this._updateMetadata(userId, targetUserId, tx);
+        return created;
       });
 
-      await this._updateMetadata(userId, targetUserId);
-
-      secureLog('info', 'Friend request sent', { userId, targetUserId });
+      logger.info('Friend request sent', { userId, targetUserId });
       return connection;
     } catch (error) {
-      secureLog('error', 'Error sending friend request:', error);
+      logger.error('Error sending friend request:', error);
       throw error;
     }
   }
@@ -127,11 +129,11 @@ class SocialGraphService {
     }
   }
 
-  private async _updateMetadata(userId1: string, userId2: string): Promise<void> {
+  private async _updateMetadata(userId1: string, userId2: string, db: any = prisma): Promise<void> {
     try {
-      const mutual = await this.getMutualConnections(userId1, userId2);
+      const mutual = await this.getMutualConnections(userId1, userId2, db);
       
-      await prisma.socialConnection.updateMany({
+      await db.socialConnection.updateMany({
         where: {
           OR: [
             { userId: userId1, connectedUserId: userId2 },
@@ -143,13 +145,13 @@ class SocialGraphService {
         }
       });
     } catch (error) {
-      secureLog('error', 'Error updating metadata:', error);
+      logger.error('Error updating metadata:', error);
     }
   }
 
-  private async getMutualConnections(userId1: string, userId2: string) {
+  private async getMutualConnections(userId1: string, userId2: string, db: any = prisma) {
     try {
-      const user1Connections = await prisma.socialConnection.findMany({
+      const user1Connections = await db.socialConnection.findMany({
         where: {
           userId: userId1,
           status: 'accepted'
@@ -157,7 +159,7 @@ class SocialGraphService {
         select: { connectedUserId: true }
       });
 
-      const user2Connections = await prisma.socialConnection.findMany({
+      const user2Connections = await db.socialConnection.findMany({
         where: {
           userId: userId2,
           status: 'accepted'
@@ -170,7 +172,7 @@ class SocialGraphService {
 
       const mutualIds = [...user1Ids].filter(id => user2Ids.has(id));
 
-      const mutualConnections = await prisma.user.findMany({
+      const mutualConnections = await db.user.findMany({
         where: {
           id: { in: mutualIds }
         },
