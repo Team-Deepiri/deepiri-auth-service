@@ -3,7 +3,7 @@ import { randomUUID} from 'crypto';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import { secureLog } from '@deepiri/shared-utils';
+import { secureLog } from '@team-deepiri/shared-utils';
 import routes from './index';
 import { connectDatabase } from './db';
 import { bodyParserConfig, requestSizeLimiter } from './middleware/requestLimits';

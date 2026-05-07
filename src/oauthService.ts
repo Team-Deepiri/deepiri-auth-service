@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { Request, Response } from 'express';
-import { createLogger } from '@deepiri/shared-utils';
-import { secureLog } from '@deepiri/shared-utils';
+import { createLogger } from '@team-deepiri/shared-utils';
+import { secureLog } from '@team-deepiri/shared-utils';
 
 const logger = createLogger('oauth-service');
 
