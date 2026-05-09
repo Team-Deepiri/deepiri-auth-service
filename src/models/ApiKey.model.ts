@@ -1,5 +1,5 @@
 import prisma from '../db';
-import { ApiKeyScope, ApiKeyCachePayload } from '@deepiri/shared-utils';
+import { ApiKeyScope, ApiKeyCachePayload } from '@team-deepiri/shared-utils';
 
 export interface IApiKey {
   id: string;

@@ -7,7 +7,7 @@
  * All publish functions are fire-and-forget — streaming errors are logged but
  * NEVER propagated so that an unavailable Redis never causes an auth failure.
  */
-import { StreamingClient, StreamTopics, StreamEvent, secureLog } from '@deepiri/shared-utils';
+import { StreamingClient, StreamTopics, StreamEvent, secureLog } from '@team-deepiri/shared-utils';
 
 let streamingClient: StreamingClient | null = null;
 

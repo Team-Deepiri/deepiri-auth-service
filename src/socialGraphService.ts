@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { createLogger } from '@deepiri/shared-utils';
-import { secureLog } from '@deepiri/shared-utils';
+import { createLogger } from '@team-deepiri/shared-utils';
+import { secureLog } from '@team-deepiri/shared-utils';
 import prisma from './db';
 
 const logger = createLogger('social-graph-service');
@@ -24,7 +24,7 @@ class SocialGraphService {
     try {
       const { userId } = req.params;
       const { targetUserId } = req.body;
-      
+
       if (!targetUserId) {
         res.status(400).json({ error: 'Missing targetUserId' });
         return;
@@ -132,7 +132,7 @@ class SocialGraphService {
   private async _updateMetadata(userId1: string, userId2: string, db: any = prisma): Promise<void> {
     try {
       const mutual = await this.getMutualConnections(userId1, userId2, db);
-      
+
       await db.socialConnection.updateMany({
         where: {
           OR: [

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { createLogger } from '@deepiri/shared-utils';
-import { secureLog } from '@deepiri/shared-utils';
+import { createLogger } from '@team-deepiri/shared-utils';
+import { secureLog } from '@team-deepiri/shared-utils';
 import prisma from './db';
 
 const logger = createLogger('time-series-service');
@@ -9,7 +9,7 @@ class TimeSeriesService {
   async recordData(req: Request, res: Response): Promise<void> {
     try {
       const { userId, metric, value, metadata } = req.body;
-      
+
       if (!userId || !metric || value === undefined) {
         res.status(400).json({ error: 'Missing required fields' });
         return;
@@ -27,7 +27,7 @@ class TimeSeriesService {
     try {
       const { userId } = req.params;
       const { metric, startDate, endDate } = req.query;
-      
+
       if (!metric || !startDate || !endDate) {
         res.status(400).json({ error: 'Missing query parameters' });
         return;

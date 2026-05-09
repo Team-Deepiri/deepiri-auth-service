@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { createLogger } from '@deepiri/shared-utils';
-import { secureLog } from '@deepiri/shared-utils';
+import { createLogger } from '@team-deepiri/shared-utils';
+import { secureLog } from '@team-deepiri/shared-utils';
 import prisma from './db';
 
 const logger = createLogger('skill-tree-service');
@@ -33,7 +33,7 @@ class SkillTreeService {
     try {
       const { userId } = req.params;
       const { skillName, xpAmount } = req.body;
-      
+
       if (!skillName || !xpAmount) {
         res.status(400).json({ error: 'Missing skillName or xpAmount' });
         return;
@@ -53,7 +53,7 @@ class SkillTreeService {
         where: { userId },
         include: { skills: true }
       });
-      
+
       if (!skillTree) {
         // Create skill tree
         skillTree = await db.skillTree.create({
@@ -66,7 +66,7 @@ class SkillTreeService {
           include: { skills: true }
         });
       }
-      
+
       // Convert to expected format
       const skillsObj: Record<string, any> = {};
       skillTree.skills.forEach((skill: any) => {
@@ -76,7 +76,7 @@ class SkillTreeService {
           unlocked: skill.unlocked
         };
       });
-      
+
       return {
         id: skillTree.id,
         userId: skillTree.userId,
@@ -104,11 +104,11 @@ class SkillTreeService {
     try {
       return await prisma.$transaction(async (tx: any) => {
         const skillTree = await this.getOrCreateSkillTree(userId, tx);
-        
+
         if (!SKILLS.includes(skillName)) {
           throw new Error(`Invalid skill: ${skillName}`);
         }
-        
+
         let skill = await tx.skill.findFirst({
           where: {
             skillTreeId: skillTree.id,
@@ -127,11 +127,11 @@ class SkillTreeService {
             }
           });
         }
-        
+
         const newXp = skill.xp + xpAmount;
         const newLevel = Math.floor(newXp / XP_PER_LEVEL) + 1;
         const leveledUp = newLevel > skill.level && newLevel <= MAX_LEVEL;
-        
+
         const updatedSkill = await tx.skill.update({
           where: { id: skill.id },
           data: {
@@ -150,7 +150,7 @@ class SkillTreeService {
             lastUpdated: new Date()
           }
         });
-        
+
         return {
           skill: skillName,
           level: updatedSkill.level,

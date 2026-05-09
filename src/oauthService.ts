@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { Request, Response } from 'express';
-import { createLogger } from '@deepiri/shared-utils';
-import { secureLog } from '@deepiri/shared-utils';
+import { createLogger } from '@team-deepiri/shared-utils';
+import { secureLog } from '@team-deepiri/shared-utils';
 
 const logger = createLogger('oauth-service');
 
@@ -47,7 +47,7 @@ class OAuthService {
   registerClient(req: Request, res: Response): void {
     try {
       const { clientId, clientSecret, redirectUris, scopes } = req.body;
-      
+
       if (!clientId || !clientSecret || !redirectUris || !scopes) {
         res.status(400).json({ error: 'Missing required fields' });
         return;
@@ -60,7 +60,7 @@ class OAuthService {
         scopes: Array.isArray(scopes) ? scopes : [scopes],
         createdAt: new Date()
       };
-      
+
       this.clients.set(clientId, client);
       secureLog('info', 'OAuth client registered', { clientId });
       res.json({ clientId, clientSecret });
@@ -74,7 +74,7 @@ class OAuthService {
     try {
       const { clientId, redirectUri, scopes, state } = req.body;
       const client = this.clients.get(clientId);
-      
+
       if (!client) {
         res.status(400).json({ error: 'Invalid client ID' });
         return;
@@ -101,7 +101,7 @@ class OAuthService {
     try {
       const { code, clientId, clientSecret, redirectUri } = req.body;
       const authData = this.authorizationCodes.get(code);
-      
+
       if (!authData) {
         res.status(400).json({ error: 'Invalid authorization code' });
         return;
