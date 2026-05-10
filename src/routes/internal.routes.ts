@@ -82,9 +82,7 @@ router.post(
         logger.error('[AuthService/internal] Failed to update lastUsedAt', { error: updateError });
       });
 
-      logger.info('[AuthService/internal] Cache MISS resolved', {
-        serviceAccountId: payload.serviceAccountId,
-      });
+      logger.info('[AuthService/internal] Cache MISS resolved');
 
       res.status(200).json(payload);
 
