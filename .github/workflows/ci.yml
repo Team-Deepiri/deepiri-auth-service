@@ -41,6 +41,14 @@ jobs:
       - name: Authenticate GitHub Packages
         run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
 
+      - name: Install shared utils dependencies
+        run: npm install --ignore-scripts
+        working-directory: shared/deepiri-shared-utils
+
+      - name: Build shared utils
+        run: npm run build
+        working-directory: shared/deepiri-shared-utils
+
       - name: Install dependencies
         run: npm ci
         working-directory: backend/deepiri-auth-service
