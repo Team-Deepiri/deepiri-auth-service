@@ -13,7 +13,7 @@ const router: Router = express.Router();
 router.use('/internal', internalRoutes);
 // Auth routes
 router.post('/auth/login',
-  validate([commonValidations.email, commonValidations.password]),
+  validate([commonValidations.email, commonValidations.password], { allowedBodyFields: ['email', 'password'] }),
   (req: Request, res: Response) => authService.login(req, res)
 );
 
@@ -24,41 +24,44 @@ router.post('/auth/register',
     commonValidations.string('username', 50),
     commonValidations.string('firstName', 100).optional(),
     commonValidations.string('lastName', 100).optional()
-  ]),
+  ], { allowedBodyFields: ['email', 'password', 'username', 'firstName', 'lastName'] }),
   (req: Request, res: Response) => authService.register(req, res)
 );
 router.get('/auth/verify',
   validate([
     header('authorization')
+      .trim()
       .notEmpty()
       .withMessage('Authorization header required')
       .matches(/^Bearer\s+[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]*$/)
       .withMessage('Invalid JWT format')
-  ]),
+  ], { allowedHeaderFields: ['authorization', 'x-request-id', 'x-api-key'] }),
   (req: Request, res: Response) => authService.verify(req, res)
 );
 
 router.post('/auth/refresh',
   validate([
     body('refreshToken')
+      .trim()
       .notEmpty()
       .withMessage('Refresh token required')
       .isLength({ min: 10, max: 2000 })
       .withMessage('Invalid refresh token format')
-  ]),
+  ], { allowedBodyFields: ['refreshToken'] }),
   (req: Request, res: Response) => authService.refresh(req, res)
 );
 router.post('/auth/logout',
   validate([
     header('authorization')
+      .trim()
       .notEmpty()
       .withMessage('Authorization header required')
-  ]),
+  ], { allowedHeaderFields: ['authorization', 'x-request-id', 'x-api-key'] }),
   (req: Request, res: Response) => authService.logout(req, res)
 );
 
 router.post('/auth/forgot-password',
-  validate([commonValidations.email]),
+  validate([commonValidations.email], { allowedBodyFields: ['email'] }),
   (req: Request, res: Response) => authService.forgotPassword(req, res)
 );
 
@@ -66,7 +69,7 @@ router.post('/auth/reset-password',
   validate([
     commonValidations.string('token', 1000),
     commonValidations.password
-  ]),
+  ], { allowedBodyFields: ['token', 'password'] }),
   (req: Request, res: Response) => authService.resetPassword(req, res)
 );
 
@@ -74,10 +77,12 @@ router.post('/auth/reset-password',
 router.post('/oauth/authorize',
   validate([
     body('clientId')
+      .trim()
       .notEmpty()
       .isUUID()
       .withMessage('Invalid client ID'),
     body('redirectUri')
+      .trim()
       .notEmpty()
       .isURL({ protocols: ['http', 'https'] })
       .withMessage('Invalid redirect URI')
@@ -87,35 +92,41 @@ router.post('/oauth/authorize',
       .isArray()
       .withMessage('Scopes must be an array'),
     body('responseType')
+      .trim()
       .isIn(['code', 'token', 'id_token'])
       .withMessage('Invalid response type')
-  ]),
+  ], { allowedBodyFields: ['clientId', 'redirectUri', 'scopes', 'responseType'] }),
   (req: Request, res: Response) => oauthService.authorize(req, res)
 );
 
 router.post('/oauth/token',
   validate([
     body('grantType')
+      .trim()
       .notEmpty()
       .isIn(['authorization_code', 'refresh_token', 'client_credentials'])
       .withMessage('Invalid grant type'),
     body('clientId')
+      .trim()
       .notEmpty()
       .isUUID()
       .withMessage('Invalid client ID'),
     body('clientSecret')
+      .trim()
       .notEmpty()
       .isLength({ min: 32 })
       .withMessage('Invalid client secret'),
     body('code')
       .optional()
+      .trim()
       .isLength({ min: 10, max: 2000 })
       .withMessage('Invalid authorization code'),
     body('refreshToken')
       .optional()
+      .trim()
       .isLength({ min: 10, max: 2000 })
       .withMessage('Invalid refresh token')
-  ]),
+  ], { allowedBodyFields: ['grantType', 'clientId', 'clientSecret', 'code', 'refreshToken'] }),
   (req: Request, res: Response) => oauthService.token(req, res)
 );
 router.post('/oauth/register',
@@ -139,7 +150,7 @@ router.post('/oauth/register',
     body('responseTypes')
       .isArray({ min: 1 })
       .withMessage('At least one response type required')
-  ]),
+  ], { allowedBodyFields: ['clientName', 'redirectUris', 'scopes', 'responseTypes'] }),
   (req: Request, res: Response) => oauthService.registerClient(req, res)
 );
 
@@ -156,7 +167,7 @@ router.post('/skill-tree/:userId/upgrade',
     param('userId').isUUID().withMessage('Invalid user ID format'),
     commonValidations.string('skillId', 100),
     commonValidations.integer('level', 1, 100)
-  ]),
+  ], { allowedBodyFields: ['skillId', 'level'] }),
   (req: Request, res: Response) => skillTreeService.upgradeSkill(req, res)
 );
 
@@ -172,7 +183,7 @@ router.post('/social/:userId/friends',
   validate([
     param('userId').isUUID().withMessage('Invalid user ID format'),
     commonValidations.string('friendId', 100)
-  ]),
+  ], { allowedBodyFields: ['friendId'] }),
   (req: Request, res: Response) => socialGraphService.addFriend(req, res)
 );
 
@@ -181,18 +192,18 @@ router.post('/time-series/record',
   validate([
     commonValidations.string('metric', 100),
     commonValidations.integer('value', -1000000, 1000000),
-    query('timestamp').optional().isISO8601().withMessage('Invalid timestamp format')
-  ]),
+    query('timestamp').optional().trim().isISO8601().withMessage('Invalid timestamp format')
+  ], { allowedBodyFields: ['metric', 'value'], allowedQueryFields: ['timestamp'] }),
   (req: Request, res: Response) => timeSeriesService.recordData(req, res)
 );
 
 router.get('/time-series/:userId',
   validate([
     param('userId').isUUID().withMessage('Invalid user ID format'),
-    query('metric').optional().isLength({ max: 100 }).withMessage('Metric must be less than 100 characters'),
-    query('startDate').optional().isISO8601().withMessage('Invalid start date format'),
-    query('endDate').optional().isISO8601().withMessage('Invalid end date format')
-  ]),
+    query('metric').optional().trim().isLength({ max: 100 }).withMessage('Metric must be less than 100 characters'),
+    query('startDate').optional().trim().isISO8601().withMessage('Invalid start date format'),
+    query('endDate').optional().trim().isISO8601().withMessage('Invalid end date format')
+  ], { allowedQueryFields: ['metric', 'startDate', 'endDate'] }),
   (req: Request, res: Response) => timeSeriesService.getData(req, res)
 );
 

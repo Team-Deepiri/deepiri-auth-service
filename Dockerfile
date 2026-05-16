@@ -5,8 +5,6 @@ COPY shared/deepiri-shared-utils/tsconfig.json /shared/deepiri-shared-utils/
 COPY shared/deepiri-shared-utils/src /shared/deepiri-shared-utils/src
 COPY backend/deepiri-auth-service/package*.json ./
 COPY backend/deepiri-auth-service/tsconfig.json ./
-
-# Copy Prisma schema before npm install (needed for postinstall script)
 COPY backend/deepiri-auth-service/prisma ./prisma
 
 RUN node -e "const fs=require('fs'),lock=JSON.parse(fs.readFileSync('package-lock.json'));delete lock.packages['../../shared/deepiri-shared-utils'];delete lock.packages['node_modules/@team-deepiri/shared-utils'];fs.writeFileSync('package-lock.json',JSON.stringify(lock));" \
@@ -24,8 +22,8 @@ RUN node -e "const fs=require('fs'),lock=JSON.parse(fs.readFileSync('package-loc
 # Copy source files
 COPY backend/deepiri-auth-service/src ./src
 
-# Prisma generate is already run by postinstall script, but ensure it's done
-RUN npx prisma generate || true
+RUN npx prisma generate || true \
+ && npm run build
 
 # Build TypeScript
 RUN npm run build
