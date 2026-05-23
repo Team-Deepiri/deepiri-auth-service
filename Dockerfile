@@ -24,7 +24,7 @@ RUN node -e "const fs=require('fs'),lock=JSON.parse(fs.readFileSync('package-loc
 # Copy source files
 COPY backend/deepiri-auth-service/src ./src
 
-# Generate Prisma client and compile the application cleanly
+# Generate Prisma client and compile the application
 RUN npx prisma generate || true \
  && npm run build
 
