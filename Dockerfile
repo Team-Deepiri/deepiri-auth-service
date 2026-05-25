@@ -11,7 +11,7 @@ COPY backend/deepiri-auth-service/prisma ./prisma
 RUN node -e "const fs=require('fs'),lock=JSON.parse(fs.readFileSync('package-lock.json'));delete lock.packages['../../shared/deepiri-shared-utils'];delete lock.packages['node_modules/@team-deepiri/shared-utils'];fs.writeFileSync('package-lock.json',JSON.stringify(lock));" \
  && cd /shared/deepiri-shared-utils \
  && npm ci --legacy-peer-deps \
- && npx tsc \
+ && npm run build --if-present \
  && node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json'));delete p.scripts.prepare;fs.writeFileSync('package.json',JSON.stringify(p,null,2));" \
  && cd /app \
  && npm install --legacy-peer-deps \
