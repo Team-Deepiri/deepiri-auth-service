@@ -1,28 +1,17 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { header, body } from 'express-validator';
 import { PrismaClient } from '@prisma/client';
 import { ApiKeyCachePayload } from '@team-deepiri/shared-utils';
 import { createRedisClient } from '@team-deepiri/shared-utils';
+import { validate } from '../middleware/inputValidation';
+import { logger } from '../utils/logger';
 import { ApiKey } from '../models/ApiKey.model';
 
-const router  = Router();
-const prisma  = new PrismaClient();
-const redis   = createRedisClient();
+const router = Router();
+const prisma = new PrismaClient();
+const redis = createRedisClient();
 
 const CACHE_TTL_SECONDS = 300;
-
-function requireInternalSecret(
-  req:  Request,
-  res:  Response,
-  next: NextFunction
-): void {
-  const secret = req.headers['x-internal-secret'] as string | undefined;
-  if (!secret || secret !== process.env.INTERNAL_SERVICE_SECRET) {
-    console.warn('[AuthService/internal] Rejected — bad or missing internal secret.');
-    res.status(403).json({ error: 'Forbidden.' });
-    return;
-  }
-  next();
-}
 
 interface ValidateApiKeyRequestBody {
   hashedKey: string;
@@ -30,18 +19,33 @@ interface ValidateApiKeyRequestBody {
 
 router.post(
   '/validate-api-key',
-  requireInternalSecret,
+  validate([
+    header('x-internal-secret')
+      .trim()
+      .notEmpty()
+      .withMessage('x-internal-secret header is required')
+      .custom((secretValue: string) => {
+        if (!process.env.INTERNAL_SERVICE_SECRET || secretValue !== process.env.INTERNAL_SERVICE_SECRET) {
+          throw new Error('Invalid internal service secret');
+        }
+        return true;
+      }),
+    body('hashedKey')
+      .trim()
+      .notEmpty()
+      .withMessage('hashedKey is required in the request body.')
+      .isLength({ min: 16, max: 512 })
+      .withMessage('hashedKey must be between 16 and 512 characters long'),
+  ], {
+    allowedBodyFields: ['hashedKey'],
+    allowedHeaderFields: ['x-internal-secret', 'x-request-id', 'x-api-key'],
+  }),
   async (
     req: Request<{}, {}, ValidateApiKeyRequestBody>,
     res: Response,
     next: NextFunction
   ): Promise<void> => {
     const { hashedKey } = req.body;
-
-    if (!hashedKey || typeof hashedKey !== 'string') {
-      res.status(400).json({ error: 'hashedKey is required in the request body.' });
-      return;
-    }
 
     try {
       const apiKey = await ApiKey.findActiveByHash(hashedKey);
@@ -63,14 +67,14 @@ router.post(
       apiKey.lastUsedAt = new Date();
       apiKey.save().catch(console.error);
 
-      console.info(
-        `[AuthService/internal] Cache MISS resolved — account: ${payload.serviceAccountId}`
-      );
+      logger.info('[AuthService/internal] Cache MISS resolved', {
+        serviceAccountId: payload.serviceAccountId,
+      });
 
       res.status(200).json(payload);
 
     } catch (err) {
-      console.error('[AuthService/internal] Validation error:', err);
+      logger.error('[AuthService/internal] Validation error', { error: err });
       res.status(503).json({ error: 'Auth service temporarily unavailable.' });
     }
   }

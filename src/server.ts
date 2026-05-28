@@ -1,5 +1,5 @@
 import express, { Express, Request, Response, ErrorRequestHandler, NextFunction } from 'express';
-import { randomUUID} from 'crypto';
+import { randomUUID } from 'crypto';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
@@ -7,6 +7,7 @@ import { secureLog } from '@team-deepiri/shared-utils';
 import routes from './index';
 import { connectDatabase } from './db';
 import { bodyParserConfig, requestSizeLimiter } from './middleware/requestLimits';
+import { logger } from './utils/logger';
 
 dotenv.config();
 
@@ -41,10 +42,30 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// Request/response logging middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const startTime = Date.now();
+
+  res.on('finish', () => {
+    const durationMs = Date.now() - startTime;
+    logger.info('HTTP request completed', {
+      requestId: (req as any).requestId || 'unknown',
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: res.statusCode,
+      durationMs,
+      userAgent: req.get('user-agent') || 'unknown',
+      ip: req.ip,
+    });
+  });
+
+  next();
+});
+
 // PostgreSQL connection via Prisma
 connectDatabase()
   .catch((err: Error) => {
-    secureLog('error', 'Auth Service: Failed to connect to PostgreSQL', err);
+    logger.error('Auth Service: Failed to connect to PostgreSQL', { error: err.message, stack: err.stack });
     process.exit(1);
   });
 
@@ -57,13 +78,25 @@ app.use('/', routes);
 
 // Error handler
 const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
-  secureLog('error', 'Auth Service error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  logger.error('Unhandled auth service error', {
+    requestId: (req as any).requestId || 'unknown',
+    method: req.method,
+    path: req.originalUrl,
+    errorMessage: err instanceof Error ? err.message : 'Unknown error',
+    stack: err instanceof Error ? err.stack : undefined,
+  });
+
+  res.status(500).json({
+    success: false,
+    error: 'Internal server error',
+    requestId: (req as any).requestId || 'unknown',
+    timestamp: new Date().toISOString(),
+  });
 };
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  secureLog('info', `Auth Service running on port ${PORT}`);
+  logger.info(`Auth Service running on port ${PORT}`);
 });
 
 export default app;
