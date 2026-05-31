@@ -43,8 +43,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // Request/response logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
-  const startTime = Date.now(); 
-  
+  const startTime = Date.now();
+
   res.on('finish', () => {
     const durationMs = Date.now() - startTime;
     logger.info('HTTP request completed', {

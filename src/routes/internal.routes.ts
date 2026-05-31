@@ -1,7 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { header, body } from 'express-validator';
 import { PrismaClient } from '@prisma/client';
-import { ApiKeyCachePayload } from '@deepiri/shared-utils';
-import { createRedisClient } from '@deepiri/shared-utils';
+import { ApiKeyCachePayload } from '@team-deepiri/shared-utils';
+import { createRedisClient } from '@team-deepiri/shared-utils';
+import { ApiKey } from '../models/ApiKey.model';
 import { body, header } from 'express-validator';
 import { validate } from '../middleware/inputValidation';
 import { logger } from '../utils/logger';
@@ -82,7 +84,9 @@ router.post(
         logger.error('[AuthService/internal] Failed to update lastUsedAt', { error: updateError });
       });
 
-      logger.info('[AuthService/internal] Cache MISS resolved');
+      logger.info('[AuthService/internal] Cache MISS resolved', {
+        serviceAccountId: payload.serviceAccountId,
+      });
 
       res.status(200).json(payload);
 
