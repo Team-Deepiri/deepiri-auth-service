@@ -18,9 +18,23 @@ interface ValidationOptions {
   allowedHeaderFields?: string[];
 }
 
+const PROXY_HEADERS = new Set([
+  'x-forwarded-for',
+  'x-forwarded-host',
+  'x-forwarded-proto',
+  'x-forwarded-port',
+  'x-forwarded-server',
+  'x-real-ip',
+  'x-amzn-trace-id',
+  'x-amz-cf-id',
+]);
+
 const isApplicationHeader = (headerName: string): boolean => {
   const normalizedHeaderName = headerName.toLowerCase();
-  return normalizedHeaderName === 'authorization' || normalizedHeaderName.startsWith('x-');
+  return (
+    !PROXY_HEADERS.has(normalizedHeaderName) &&
+    (normalizedHeaderName === 'authorization' || normalizedHeaderName.startsWith('x-'))
+  );
 };
 
 const sanitizeValue = (value: unknown): unknown => {
