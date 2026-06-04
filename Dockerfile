@@ -1,21 +1,21 @@
-FROM ghcr.io/team-deepiri/deepiri-base:18-slim
+FROM ghcr.io/team-deepiri/deepiri-suite:18-slim
 
 COPY shared/deepiri-shared-utils/package*.json /shared/deepiri-shared-utils/
 COPY shared/deepiri-shared-utils/tsconfig.json /shared/deepiri-shared-utils/
 COPY shared/deepiri-shared-utils/src /shared/deepiri-shared-utils/src
 COPY backend/deepiri-auth-service/package*.json ./
 COPY backend/deepiri-auth-service/tsconfig.json ./
-
-# Copy Prisma schema before npm install (needed for postinstall script)
 COPY backend/deepiri-auth-service/prisma ./prisma
 
+# Install dependencies and build shared local modules first
 RUN node -e "const fs=require('fs'),lock=JSON.parse(fs.readFileSync('package-lock.json'));delete lock.packages['../../shared/deepiri-shared-utils'];delete lock.packages['node_modules/@team-deepiri/shared-utils'];fs.writeFileSync('package-lock.json',JSON.stringify(lock));" \
  && cd /shared/deepiri-shared-utils \
  && npm ci --legacy-peer-deps \
+ && npm run build --if-present \
  && node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json'));delete p.scripts.prepare;fs.writeFileSync('package.json',JSON.stringify(p,null,2));" \
- && rm -rf node_modules \
  && cd /app \
  && npm install --legacy-peer-deps \
+ && npm install --legacy-peer-deps file:/shared/deepiri-shared-utils \
  && cd /shared/deepiri-shared-utils \
  && npm ci --omit=dev --legacy-peer-deps \
  && cd /app \
@@ -24,11 +24,9 @@ RUN node -e "const fs=require('fs'),lock=JSON.parse(fs.readFileSync('package-loc
 # Copy source files
 COPY backend/deepiri-auth-service/src ./src
 
-# Prisma generate is already run by postinstall script, but ensure it's done
-RUN npx prisma generate || true
-
-# Build TypeScript
-RUN npm run build
+# Generate Prisma client and compile the application cleanly
+RUN npx prisma generate || true \
+ && npm run build
 
 RUN mkdir -p logs && chown -R nodejs:nodejs /app
 

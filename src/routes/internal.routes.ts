@@ -1,10 +1,11 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { header, body } from 'express-validator';
 import { PrismaClient } from '@prisma/client';
-import { ApiKeyCachePayload } from '@deepiri/shared-utils';
-import { createRedisClient } from '@deepiri/shared-utils';
-import { body, header } from 'express-validator';
+import { ApiKeyCachePayload } from '@team-deepiri/shared-utils';
+import { createRedisClient } from '@team-deepiri/shared-utils';
 import { validate } from '../middleware/inputValidation';
 import { logger } from '../utils/logger';
+import { ApiKey } from '../models/ApiKey.model';
 
 const router = Router();
 const prisma = new PrismaClient();
