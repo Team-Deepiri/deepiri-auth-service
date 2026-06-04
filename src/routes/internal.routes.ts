@@ -78,14 +78,17 @@ router.post(
         CACHE_TTL_SECONDS
       );
 
-      apiKey.lastUsedAt = new Date();
-      apiKey.save().catch((updateError: unknown) => {
+      // Persist lastUsedAt using Prisma update (returned object from findFirst is plain)
+      try {
+        await prisma.apiKey.update({
+          where: { id: apiKey.id },
+          data: { lastUsedAt: new Date() },
+        });
+      } catch (updateError) {
         logger.error('[AuthService/internal] Failed to update lastUsedAt', { error: updateError });
-      });
+      }
 
-      logger.info('[AuthService/internal] Cache MISS resolved', {
-        cacheWarm: true,
-      });
+      logger.info('[AuthService/internal] Cache MISS resolved');
 
       res.status(200).json(payload);
 
