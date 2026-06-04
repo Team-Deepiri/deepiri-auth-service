@@ -18,6 +18,12 @@ interface ValidationOptions {
   allowedHeaderFields?: string[];
 }
 
+const SENSITIVE_HEADER_FIELDS = new Set([
+  'authorization',
+  'x-api-key',
+  'x-internal-secret',
+]);
+
 const PROXY_HEADERS = new Set([
   'x-forwarded-for',
   'x-forwarded-host',
@@ -35,6 +41,23 @@ const isApplicationHeader = (headerName: string): boolean => {
     !PROXY_HEADERS.has(normalizedHeaderName) &&
     (normalizedHeaderName === 'authorization' || normalizedHeaderName.startsWith('x-'))
   );
+};
+
+const isSensitiveHeaderField = (fieldName: string): boolean =>
+  SENSITIVE_HEADER_FIELDS.has(fieldName.toLowerCase());
+
+const getValidationErrorField = (err: { path?: string; param?: string; type?: string }): string =>
+  (err.path || err.param || err.type || 'unknown').toString();
+
+const serializeValidationError = (err: { path?: string; param?: string; type?: string; msg: string; value?: unknown }) => {
+  const field = getValidationErrorField(err);
+  const value = isSensitiveHeaderField(field) ? undefined : err.value;
+
+  return {
+    field,
+    message: err.msg,
+    value,
+  };
 };
 
 const sanitizeValue = (value: unknown): unknown => {
@@ -202,16 +225,14 @@ export const validate = (validations: ValidationChain[], options: ValidationOpti
       });
 
       //send error message
+      const serializedErrors = allErrors.map((err) => serializeValidationError(err as any));
+
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
         requestId,
         timestamp: new Date().toISOString(),
-        errors: allErrors.map((err) => ({
-          field: (err as any).path || (err as any).param || (err as any).type || 'unknown',
-          message: err.msg,
-          value: (err as any).value,
-        })),
+        errors: serializedErrors,
       });
     }
 
