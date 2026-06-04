@@ -78,7 +78,6 @@ router.post(
         CACHE_TTL_SECONDS
       );
 
-      // Persist lastUsedAt using Prisma update (returned object from findFirst is plain)
       try {
         await prisma.apiKey.update({
           where: { id: apiKey.id },
