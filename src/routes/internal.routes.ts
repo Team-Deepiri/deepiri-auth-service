@@ -67,9 +67,7 @@ router.post(
       apiKey.lastUsedAt = new Date();
       apiKey.save().catch(console.error);
 
-      logger.info('[AuthService/internal] Cache MISS resolved', {
-        serviceAccountId: payload.serviceAccountId,
-      });
+      logger.info('[AuthService/internal] Cache MISS resolved');
 
       res.status(200).json(payload);
 
