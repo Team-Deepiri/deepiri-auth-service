@@ -62,9 +62,7 @@ router.post(
       );
 
       apiKey.lastUsedAt = new Date();
-      apiKey.save().catch((updateError: unknown) => {
-        logger.error('[AuthService/internal] Failed to update lastUsedAt', { error: updateError });
-      });
+      apiKey.save().catch(console.error);
 
       logger.info('[AuthService/internal] Cache MISS resolved');
 
