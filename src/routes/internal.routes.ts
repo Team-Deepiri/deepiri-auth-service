@@ -1,17 +1,13 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { header, body } from 'express-validator';
-import { PrismaClient } from '@prisma/client';
 import { ApiKeyCachePayload } from '@team-deepiri/shared-utils';
 import { createRedisClient } from '@team-deepiri/shared-utils';
 import { ApiKey } from '../models/ApiKey.model';
-import { body, header } from 'express-validator';
 import { validate } from '../middleware/inputValidation';
 import { logger } from '../utils/logger';
 
 const router = Router();
-const prisma = new PrismaClient();
 const redis = createRedisClient();
-
 const CACHE_TTL_SECONDS = 300;
 
 interface ValidateApiKeyRequestBody {
@@ -49,28 +45,14 @@ router.post(
     const { hashedKey } = req.body;
 
     try {
-      const apiKey = await prisma.apiKey.findFirst({
-        where: {
-          hashedKey,
-          revokedAt: null,
-          OR: [
-            { expiresAt: null },
-            { expiresAt: { gt: new Date() } },
-          ],
-        },
-      });
+      const apiKey = await ApiKey.findActiveByHash(hashedKey);
 
       if (!apiKey) {
         res.status(401).json({ error: 'Invalid, expired, or revoked API key.' });
         return;
       }
 
-      const payload: ApiKeyCachePayload = {
-        serviceAccountId: apiKey.id,
-        ownerId: apiKey.ownerId,
-        scopes: apiKey.scopes as any,
-        label: apiKey.label,
-      };
+      const payload: ApiKeyCachePayload = apiKey.toCachePayload();
 
       await redis.set(
         `apikey:${hashedKey}`,
@@ -84,9 +66,7 @@ router.post(
         logger.error('[AuthService/internal] Failed to update lastUsedAt', { error: updateError });
       });
 
-      logger.info('[AuthService/internal] Cache MISS resolved', {
-        serviceAccountId: payload.serviceAccountId,
-      });
+      logger.info('[AuthService/internal] Cache MISS resolved');
 
       res.status(200).json(payload);
 
