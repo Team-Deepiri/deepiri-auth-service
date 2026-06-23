@@ -1,16 +1,13 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { header, body } from 'express-validator';
-import { PrismaClient } from '@prisma/client';
 import { ApiKeyCachePayload } from '@team-deepiri/shared-utils';
 import { createRedisClient } from '@team-deepiri/shared-utils';
+import { ApiKey } from '../models/ApiKey.model';
 import { validate } from '../middleware/inputValidation';
 import { logger } from '../utils/logger';
-import { ApiKey } from '../models/ApiKey.model';
 
 const router = Router();
-const prisma = new PrismaClient();
 const redis = createRedisClient();
-
 const CACHE_TTL_SECONDS = 300;
 
 interface ValidateApiKeyRequestBody {
@@ -65,7 +62,9 @@ router.post(
       );
 
       apiKey.lastUsedAt = new Date();
-      apiKey.save().catch(console.error);
+      apiKey.save().catch((updateError: unknown) => {
+        logger.error('[AuthService/internal] Failed to update lastUsedAt', { error: updateError });
+      });
 
       logger.info('[AuthService/internal] Cache MISS resolved');
 

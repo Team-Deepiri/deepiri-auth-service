@@ -18,9 +18,48 @@ interface ValidationOptions {
   allowedHeaderFields?: string[];
 }
 
+const SENSITIVE_FIELD_PATTERN = /password|secret|token|authorization|hashedkey|apikey|\bcode\b/i;
+
+const INFRA_HEADER_PREFIXES = ['x-forwarded-', 'x-amzn-', 'x-cloud-trace-'];
+const INFRA_HEADERS = new Set([
+  'x-real-ip',
+  'x-request-start',
+]);
+
+const isInfrastructureHeader = (headerName: string): boolean => {
+  const normalizedHeaderName = headerName.toLowerCase();
+  if (INFRA_HEADERS.has(normalizedHeaderName)) {
+    return true;
+  }
+  return INFRA_HEADER_PREFIXES.some((prefix) => normalizedHeaderName.startsWith(prefix));
+};
+
 const isApplicationHeader = (headerName: string): boolean => {
   const normalizedHeaderName = headerName.toLowerCase();
-  return normalizedHeaderName === 'authorization' || normalizedHeaderName.startsWith('x-');
+  if (normalizedHeaderName === 'authorization') {
+    return true;
+  }
+  if (!normalizedHeaderName.startsWith('x-') || isInfrastructureHeader(normalizedHeaderName)) {
+    return false;
+  }
+  return true;
+};
+
+const getErrorFieldName = (err: { path?: string; param?: string; type?: string }): string =>
+  err.path || err.param || err.type || 'unknown';
+
+const shouldRedactValue = (fieldName: string): boolean => SENSITIVE_FIELD_PATTERN.test(fieldName);
+
+const redactErrorValue = (fieldName: string, value: unknown): unknown =>
+  shouldRedactValue(fieldName) ? '[REDACTED]' : value;
+
+const formatValidationError = (err: { path?: string; param?: string; type?: string; msg: string; value?: unknown }) => {
+  const field = getErrorFieldName(err);
+  return {
+    field,
+    message: err.msg,
+    value: redactErrorValue(field, err.value),
+  };
 };
 
 const sanitizeValue = (value: unknown): unknown => {
@@ -184,7 +223,7 @@ export const validate = (validations: ValidationChain[], options: ValidationOpti
         requestId,
         path: req.path,
         method: req.method,
-        errors: allErrors,
+        errors: allErrors.map(formatValidationError),
       });
 
       //send error message
@@ -193,11 +232,7 @@ export const validate = (validations: ValidationChain[], options: ValidationOpti
         message: 'Validation failed',
         requestId,
         timestamp: new Date().toISOString(),
-        errors: allErrors.map((err) => ({
-          field: (err as any).path || (err as any).param || (err as any).type || 'unknown',
-          message: err.msg,
-          value: (err as any).value,
-        })),
+        errors: allErrors.map(formatValidationError),
       });
     }
 
