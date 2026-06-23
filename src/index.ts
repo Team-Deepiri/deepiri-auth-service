@@ -21,10 +21,8 @@ router.post('/auth/register',
   validate([
     commonValidations.email,
     commonValidations.password,
-    commonValidations.string('username', 50),
-    commonValidations.string('firstName', 100).optional(),
-    commonValidations.string('lastName', 100).optional()
-  ], { allowedBodyFields: ['email', 'password', 'username', 'firstName', 'lastName'] }),
+    commonValidations.string('name', 200),
+  ], { allowedBodyFields: ['email', 'password', 'name'] }),
   (req: Request, res: Response) => authService.register(req, res)
 );
 router.get('/auth/verify',
@@ -41,13 +39,13 @@ router.get('/auth/verify',
 
 router.post('/auth/refresh',
   validate([
-    body('refreshToken')
+    header('authorization')
       .trim()
       .notEmpty()
-      .withMessage('Refresh token required')
-      .isLength({ min: 10, max: 2000 })
-      .withMessage('Invalid refresh token format')
-  ], { allowedBodyFields: ['refreshToken'] }),
+      .withMessage('Authorization header required')
+      .matches(/^Bearer\s+[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]+\.[A-Za-z0-9\-_=]*$/)
+      .withMessage('Invalid JWT format')
+  ], { allowedHeaderFields: ['authorization', 'x-request-id', 'x-api-key'] }),
   (req: Request, res: Response) => authService.refresh(req, res)
 );
 router.post('/auth/logout',
@@ -91,21 +89,22 @@ router.post('/oauth/authorize',
     body('scopes')
       .isArray()
       .withMessage('Scopes must be an array'),
-    body('responseType')
+    body('state')
+      .optional()
       .trim()
-      .isIn(['code', 'token', 'id_token'])
-      .withMessage('Invalid response type')
-  ], { allowedBodyFields: ['clientId', 'redirectUri', 'scopes', 'responseType'] }),
+      .isLength({ max: 512 })
+      .withMessage('State must be less than 512 characters')
+  ], { allowedBodyFields: ['clientId', 'redirectUri', 'scopes', 'state'] }),
   (req: Request, res: Response) => oauthService.authorize(req, res)
 );
 
 router.post('/oauth/token',
   validate([
-    body('grantType')
+    body('code')
       .trim()
       .notEmpty()
-      .isIn(['authorization_code', 'refresh_token', 'client_credentials'])
-      .withMessage('Invalid grant type'),
+      .isLength({ min: 10, max: 2000 })
+      .withMessage('Invalid authorization code'),
     body('clientId')
       .trim()
       .notEmpty()
@@ -116,26 +115,28 @@ router.post('/oauth/token',
       .notEmpty()
       .isLength({ min: 32 })
       .withMessage('Invalid client secret'),
-    body('code')
-      .optional()
+    body('redirectUri')
       .trim()
-      .isLength({ min: 10, max: 2000 })
-      .withMessage('Invalid authorization code'),
-    body('refreshToken')
-      .optional()
-      .trim()
-      .isLength({ min: 10, max: 2000 })
-      .withMessage('Invalid refresh token')
-  ], { allowedBodyFields: ['grantType', 'clientId', 'clientSecret', 'code', 'refreshToken'] }),
+      .notEmpty()
+      .isURL({ protocols: ['http', 'https'] })
+      .withMessage('Invalid redirect URI')
+      .isLength({ max: 2048 })
+      .withMessage('Redirect URI must be less than 2048 characters'),
+  ], { allowedBodyFields: ['code', 'clientId', 'clientSecret', 'redirectUri'] }),
   (req: Request, res: Response) => oauthService.token(req, res)
 );
 router.post('/oauth/register',
   validate([
-    body('clientName')
+    body('clientId')
       .trim()
       .notEmpty()
-      .isLength({ min: 2, max: 255 })
-      .withMessage('Client name must be 2-255 characters'),
+      .isUUID()
+      .withMessage('Invalid client ID'),
+    body('clientSecret')
+      .trim()
+      .notEmpty()
+      .isLength({ min: 32, max: 256 })
+      .withMessage('Client secret must be 32-256 characters'),
     body('redirectUris')
       .isArray({ min: 1, max: 50 })
       .withMessage('redirectUris must be an array of 1 to 50 items'),
@@ -145,12 +146,9 @@ router.post('/oauth/register',
       .isLength({ max: 2048 })
       .withMessage('Each redirect URI must be less than 2048 characters'),
     body('scopes')
-      .isArray()
-      .withMessage('Scopes must be an array'),
-    body('responseTypes')
       .isArray({ min: 1 })
-      .withMessage('At least one response type required')
-  ], { allowedBodyFields: ['clientName', 'redirectUris', 'scopes', 'responseTypes'] }),
+      .withMessage('Scopes must be a non-empty array'),
+  ], { allowedBodyFields: ['clientId', 'clientSecret', 'redirectUris', 'scopes'] }),
   (req: Request, res: Response) => oauthService.registerClient(req, res)
 );
 
@@ -165,9 +163,9 @@ router.get('/skill-tree/:userId',
 router.post('/skill-tree/:userId/upgrade',
   validate([
     param('userId').isUUID().withMessage('Invalid user ID format'),
-    commonValidations.string('skillId', 100),
-    commonValidations.integer('level', 1, 100)
-  ], { allowedBodyFields: ['skillId', 'level'] }),
+    commonValidations.string('skillName', 100),
+    commonValidations.integer('xpAmount', 1, 1_000_000)
+  ], { allowedBodyFields: ['skillName', 'xpAmount'] }),
   (req: Request, res: Response) => skillTreeService.upgradeSkill(req, res)
 );
 
@@ -182,18 +180,30 @@ router.get('/social/:userId/friends',
 router.post('/social/:userId/friends',
   validate([
     param('userId').isUUID().withMessage('Invalid user ID format'),
-    commonValidations.string('friendId', 100)
-  ], { allowedBodyFields: ['friendId'] }),
+    body('targetUserId')
+      .trim()
+      .notEmpty()
+      .isUUID()
+      .withMessage('Invalid target user ID format'),
+  ], { allowedBodyFields: ['targetUserId'] }),
   (req: Request, res: Response) => socialGraphService.addFriend(req, res)
 );
 
 // Time series routes
 router.post('/time-series/record',
   validate([
+    body('userId')
+      .trim()
+      .notEmpty()
+      .isUUID()
+      .withMessage('Invalid user ID format'),
     commonValidations.string('metric', 100),
     commonValidations.integer('value', -1000000, 1000000),
-    query('timestamp').optional().trim().isISO8601().withMessage('Invalid timestamp format')
-  ], { allowedBodyFields: ['metric', 'value'], allowedQueryFields: ['timestamp'] }),
+    body('metadata')
+      .optional()
+      .isObject()
+      .withMessage('Metadata must be an object'),
+  ], { allowedBodyFields: ['userId', 'metric', 'value', 'metadata'] }),
   (req: Request, res: Response) => timeSeriesService.recordData(req, res)
 );
 

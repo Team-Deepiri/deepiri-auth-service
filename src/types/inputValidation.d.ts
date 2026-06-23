@@ -5,7 +5,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ValidationChain } from 'express-validator';
 
-declare module './middleware/inputValidation' {
+declare module '../middleware/inputValidation' {
   //Validation error response structure
   interface ValidationError {
     field: string; //which field failed
