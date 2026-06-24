@@ -18,45 +18,47 @@ interface ValidationOptions {
   allowedHeaderFields?: string[];
 }
 
-const SENSITIVE_HEADER_FIELDS = new Set([
-  'authorization',
-  'x-api-key',
-  'x-internal-secret',
+const SENSITIVE_FIELD_PATTERN = /password|secret|token|authorization|hashedkey|apikey|\bcode\b/i;
+
+const INFRA_HEADER_PREFIXES = ['x-forwarded-', 'x-amzn-', 'x-cloud-trace-'];
+const INFRA_HEADERS = new Set([
+  'x-real-ip',
+  'x-request-start',
 ]);
 
-const PROXY_HEADERS = new Set([
-  'x-forwarded-for',
-  'x-forwarded-host',
-  'x-forwarded-proto',
-  'x-forwarded-port',
-  'x-forwarded-server',
-  'x-real-ip',
-  'x-amzn-trace-id',
-  'x-amz-cf-id',
-]);
+const isInfrastructureHeader = (headerName: string): boolean => {
+  const normalizedHeaderName = headerName.toLowerCase();
+  if (INFRA_HEADERS.has(normalizedHeaderName)) {
+    return true;
+  }
+  return INFRA_HEADER_PREFIXES.some((prefix) => normalizedHeaderName.startsWith(prefix));
+};
 
 const isApplicationHeader = (headerName: string): boolean => {
   const normalizedHeaderName = headerName.toLowerCase();
-  return (
-    !PROXY_HEADERS.has(normalizedHeaderName) &&
-    (normalizedHeaderName === 'authorization' || normalizedHeaderName.startsWith('x-'))
-  );
+  if (normalizedHeaderName === 'authorization') {
+    return true;
+  }
+  if (!normalizedHeaderName.startsWith('x-') || isInfrastructureHeader(normalizedHeaderName)) {
+    return false;
+  }
+  return true;
 };
 
-const isSensitiveHeaderField = (fieldName: string): boolean =>
-  SENSITIVE_HEADER_FIELDS.has(fieldName.toLowerCase());
+const getErrorFieldName = (err: { path?: string; param?: string; type?: string }): string =>
+  err.path || err.param || err.type || 'unknown';
 
-const getValidationErrorField = (err: { path?: string; param?: string; type?: string }): string =>
-  (err.path || err.param || err.type || 'unknown').toString();
+const shouldRedactValue = (fieldName: string): boolean => SENSITIVE_FIELD_PATTERN.test(fieldName);
 
-const serializeValidationError = (err: { path?: string; param?: string; type?: string; msg: string; value?: unknown }) => {
-  const field = getValidationErrorField(err);
-  const value = isSensitiveHeaderField(field) ? undefined : err.value;
+const redactErrorValue = (fieldName: string, value: unknown): unknown =>
+  shouldRedactValue(fieldName) ? '[REDACTED]' : value;
 
+const formatValidationError = (err: { path?: string; param?: string; type?: string; msg: string; value?: unknown }) => {
+  const field = getErrorFieldName(err);
   return {
     field,
     message: err.msg,
-    value,
+    value: redactErrorValue(field, err.value),
   };
 };
 
@@ -235,18 +237,16 @@ export const validate = (validations: ValidationChain[], options: ValidationOpti
         requestId,
         path: req.path,
         method: req.method,
-        errors: allErrors,
+        errors: allErrors.map(formatValidationError),
       });
 
       //send error message
-      const serializedErrors = allErrors.map((err) => serializeValidationError(err as any));
-
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
         requestId,
         timestamp: new Date().toISOString(),
-        errors: serializedErrors,
+        errors: allErrors.map(formatValidationError),
       });
     }
 

@@ -5,12 +5,10 @@ import { ApiKeyCachePayload } from '@team-deepiri/shared-utils';
 import { createRedisClient } from '@team-deepiri/shared-utils';
 import { validate } from '../middleware/inputValidation';
 import { logger } from '../utils/logger';
-import { ApiKey } from '../models/ApiKey.model';
 
 const router = Router();
 const prisma = new PrismaClient();
 const redis = createRedisClient();
-
 const CACHE_TTL_SECONDS = 300;
 
 interface ValidateApiKeyRequestBody {
