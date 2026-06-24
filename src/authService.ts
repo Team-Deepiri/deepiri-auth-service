@@ -60,10 +60,10 @@ class AuthService {
 
   async register(req: Request, res: Response): Promise<void> {
     try {
-      const { email, password, name } = req.body;
+      const { email, password, username } = req.body;
 
-      if (!email || !password || !name) {
-        res.status(400).json({ error: 'Email, password, and name are required' });
+      if (!email || !password || !username) {
+        res.status(400).json({ error: 'Email, password, and username are required' });
         return;
       }
 
@@ -81,7 +81,7 @@ class AuthService {
         data: {
           email,
           password: hashedPassword,
-          name
+          name: username
         }
       });
 
