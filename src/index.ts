@@ -21,8 +21,8 @@ router.post('/auth/register',
   validate([
     commonValidations.email,
     commonValidations.password,
-    commonValidations.string('name', 200),
-  ], { allowedBodyFields: ['email', 'password', 'name'] }),
+    commonValidations.string('username', 200),
+  ], { allowedBodyFields: ['email', 'password', 'username'] }),
   (req: Request, res: Response) => authService.register(req, res)
 );
 router.get('/auth/verify',
