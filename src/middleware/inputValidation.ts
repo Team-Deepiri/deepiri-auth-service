@@ -82,6 +82,20 @@ const sanitizeValue = (value: unknown): unknown => {
   return value;
 };
 
+const sanitizeRequestObjectInPlace = (target: Record<string, unknown>): void => {
+  const sanitized = sanitizeValue(target);
+
+  if (!sanitized || typeof sanitized !== 'object' || Array.isArray(sanitized)) {
+    return;
+  }
+
+  for (const key of Object.keys(target)) {
+    delete target[key];
+  }
+
+  Object.assign(target, sanitized as Record<string, unknown>);
+};
+
 // Common validation rules
 export const commonValidations = {
   //Email validation: list common rules to reuse for validating email addresses
@@ -242,11 +256,11 @@ export const validate = (validations: ValidationChain[], options: ValidationOpti
     }
 
     if (req.query && typeof req.query === 'object') {
-      req.query = sanitizeValue(req.query) as Request['query'];
+      sanitizeRequestObjectInPlace(req.query as Record<string, unknown>);
     }
 
     if (req.params && typeof req.params === 'object') {
-      req.params = sanitizeValue(req.params) as Request['params'];
+      sanitizeRequestObjectInPlace(req.params as Record<string, unknown>);
     }
 
     next();
