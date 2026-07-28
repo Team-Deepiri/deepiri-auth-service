@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from './db';
 import { validateSecret } from '@team-deepiri/shared-utils';
+import { prewarmPrismSession } from './sessionPrewarm';
 
 const JWT_SECRET = validateSecret('JWT_SECRET', process.env.JWT_SECRET, 32) || '';
 
@@ -43,9 +44,13 @@ class AuthService {
         { expiresIn: '7d' }
       );
 
+      // Birth-warm: token is not returned until session cache is hot (best-effort).
+      const sessionPrewarmed = await prewarmPrismSession(token);
+
       res.json({
         success: true,
         token,
+        sessionPrewarmed,
         user: {
           id: user.id,
           email: user.email,
@@ -91,9 +96,12 @@ class AuthService {
         { expiresIn: '7d' }
       );
 
+      const sessionPrewarmed = await prewarmPrismSession(token);
+
       res.status(201).json({
         success: true,
         token,
+        sessionPrewarmed,
         user: {
           id: user.id,
           email: user.email,
@@ -164,9 +172,12 @@ class AuthService {
         { expiresIn: '7d' }
       );
 
+      const sessionPrewarmed = await prewarmPrismSession(newToken);
+
       res.json({
         success: true,
         token: newToken,
+        sessionPrewarmed,
         user: {
           id: user.id,
           email: user.email,
