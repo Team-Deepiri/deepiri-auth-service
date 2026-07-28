@@ -29,7 +29,7 @@ function resolvePrismBaseUrl(): string | null {
   }
 }
 
-def resolvePrewarmTimeoutMs(): number {
+function resolvePrewarmTimeoutMs(): number {
   // Keep await short: birth-warm must finish before JWT return, but login UX
   // should not wait multi-seconds when PrismPipe is slow/down.
   const parsed = Number(process.env.PRISMPIPE_PREWARM_TIMEOUT_MS || '800');
