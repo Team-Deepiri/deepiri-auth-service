@@ -5,29 +5,69 @@
  * the first client session check — ComputationGraph is populated before the
  * token is returned to the caller.
  */
+import axios from 'axios';
+import { logger } from './utils/logger';
+
+/** Stable path constant — not env (pipeline id is part of the PrismPipe contract). */
+export const PRISMPIPE_SESSION_PATH = '/pipelines/deepiri/session';
+
+function resolvePrismBaseUrl(): string | null {
+  const raw = (process.env.PRISMPIPE_URL || '').trim();
+  if (!raw) {
+    return null;
+  }
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      logger.warn('PRISMPIPE_URL must be http(s); birth-warm disabled', { url: raw });
+      return null;
+    }
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    logger.warn('PRISMPIPE_URL is not a valid URL; birth-warm disabled', { url: raw });
+    return null;
+  }
+}
+
+function resolvePrewarmTimeoutMs(): number {
+  const parsed = Number(process.env.PRISMPIPE_PREWARM_TIMEOUT_MS || '2000');
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 2000;
+  }
+  return Math.min(parsed, 10_000);
+}
+
 export async function prewarmPrismSession(token: string): Promise<boolean> {
-  const base = (process.env.PRISMPIPE_URL || '').trim().replace(/\/$/, '');
+  const base = resolvePrismBaseUrl();
   if (!base) {
     return false;
   }
-  const timeoutMs = Number(process.env.PRISMPIPE_PREWARM_TIMEOUT_MS || '2000');
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const timeoutMs = resolvePrewarmTimeoutMs();
   try {
-    const res = await fetch(`${base}/pipelines/deepiri/session`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const res = await axios.post(
+      `${base}${PRISMPIPE_SESSION_PATH}`,
+      {
         authorization: `Bearer ${token}`,
         use_computation_sharing: true,
-      }),
-      signal: ctrl.signal,
+      },
+      {
+        timeout: timeoutMs,
+        headers: { 'Content-Type': 'application/json' },
+        validateStatus: () => true,
+      }
+    );
+    if (res.status >= 200 && res.status < 300) {
+      return true;
+    }
+    logger.warn('PrismPipe session prewarm non-2xx', {
+      status: res.status,
+      path: PRISMPIPE_SESSION_PATH,
     });
-    return res.ok;
-  } catch {
-    // Login must not fail if PrismPipe is down — session check may be cold once.
     return false;
-  } finally {
-    clearTimeout(timer);
+  } catch (err: unknown) {
+    // Login must not fail if PrismPipe is down — session check may be cold once.
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error('PrismPipe session prewarm failed', { error: message });
+    return false;
   }
 }
