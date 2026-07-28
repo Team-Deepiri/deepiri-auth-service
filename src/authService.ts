@@ -3,7 +3,6 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from './db';
 import { validateSecret } from '@team-deepiri/shared-utils';
-import { prewarmPrismSession } from './sessionPrewarm';
 
 const JWT_SECRET = validateSecret('JWT_SECRET', process.env.JWT_SECRET, 32) || '';
 
@@ -43,10 +42,6 @@ class AuthService {
         JWT_SECRET,
         { expiresIn: '7d' }
       );
-
-      // Birth-warm (awaited on purpose): JWT is not returned until session cache
-      // is hot (or timeout). Timeout capped in sessionPrewarm (~800ms default).
-      await prewarmPrismSession(token);
 
       res.json({
         success: true,
@@ -95,8 +90,6 @@ class AuthService {
         JWT_SECRET,
         { expiresIn: '7d' }
       );
-
-      await prewarmPrismSession(token);
 
       res.status(201).json({
         success: true,
@@ -170,8 +163,6 @@ class AuthService {
         JWT_SECRET,
         { expiresIn: '7d' }
       );
-
-      await prewarmPrismSession(newToken);
 
       res.json({
         success: true,
