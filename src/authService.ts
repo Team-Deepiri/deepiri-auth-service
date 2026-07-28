@@ -44,7 +44,8 @@ class AuthService {
         { expiresIn: '7d' }
       );
 
-      // Birth-warm: await cache populate before returning JWT (best-effort).
+      // Birth-warm (awaited on purpose): JWT is not returned until session cache
+      // is hot (or timeout). Timeout capped in sessionPrewarm (~800ms default).
       await prewarmPrismSession(token);
 
       res.json({

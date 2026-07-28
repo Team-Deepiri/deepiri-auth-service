@@ -29,12 +29,14 @@ function resolvePrismBaseUrl(): string | null {
   }
 }
 
-function resolvePrewarmTimeoutMs(): number {
-  const parsed = Number(process.env.PRISMPIPE_PREWARM_TIMEOUT_MS || '2000');
+def resolvePrewarmTimeoutMs(): number {
+  // Keep await short: birth-warm must finish before JWT return, but login UX
+  // should not wait multi-seconds when PrismPipe is slow/down.
+  const parsed = Number(process.env.PRISMPIPE_PREWARM_TIMEOUT_MS || '800');
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    return 2000;
+    return 800;
   }
-  return Math.min(parsed, 10_000);
+  return Math.min(parsed, 2500);
 }
 
 export async function prewarmPrismSession(token: string): Promise<boolean> {
