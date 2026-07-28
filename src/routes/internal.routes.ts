@@ -1,13 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { header, body } from 'express-validator';
-import { PrismaClient } from '@prisma/client';
 import { ApiKeyCachePayload } from '@team-deepiri/shared-utils';
 import { createRedisClient } from '@team-deepiri/shared-utils';
 import { validate } from '../middleware/inputValidation';
 import { logger } from '../utils/logger';
+import prisma from '../db';
 
 const router = Router();
-const prisma = new PrismaClient();
 const redis = createRedisClient();
 const CACHE_TTL_SECONDS = 300;
 
