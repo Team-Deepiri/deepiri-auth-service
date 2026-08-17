@@ -17,7 +17,14 @@ export const sanitizeHtml = (input: string): string => {
 
   // Remove event handlers (onclick, onerror, etc.)
   sanitized = sanitized.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
-  sanitized = sanitized.replace(/\s*on\w+\s*=\s*[^\s>]*/gi, '');
+
+  // Apply repeatedly to avoid incomplete multi-character sanitization
+  // where a new on*= fragment can appear after a prior replacement.
+  let previousSanitized: string;
+  do {
+    previousSanitized = sanitized;
+    sanitized = sanitized.replace(/\s*on\w+\s*=\s*[^\s>]*/gi, '');
+  } while (sanitized !== previousSanitized);
 
   // Remove iframe, object, embed tags
   sanitized = sanitized.replace(/<(iframe|object|embed)[^>]*>/gi, '');
