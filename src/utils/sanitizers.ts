@@ -27,7 +27,11 @@ export const sanitizeHtml = (input: string): string => {
   } while (sanitized !== previousSanitized);
 
   // Remove iframe, object, embed tags
-  sanitized = sanitized.replace(/<(iframe|object|embed)[^>]*>/gi, '');
+  let previous: string;
+  do {
+    previous = sanitized;
+    sanitized = sanitized.replace(/<(iframe|object|embed)[^>]*>/gi, '');
+  } while (sanitized !== previous);
 
   // Remove potentially dangerous HTML attributes
   sanitized = sanitized.replace(/src\s*=\s*["']javascript:[^"']*["']/gi, '');
