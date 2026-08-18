@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import prisma from './db';
 import { validateSecret } from '@team-deepiri/shared-utils';
 
-const JWT_SECRET = validateSecret('JWT_SECRET', process.env.JWT_SECRET, 32) || '';
+const JWT_SECRET = validateSecret('JWT_SECRET', process.env.JWT_SECRET, 32);
 
 class AuthService {
   async login(req: Request, res: Response): Promise<void> {
