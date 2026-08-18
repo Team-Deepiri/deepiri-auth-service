@@ -7,6 +7,7 @@ import skillTreeService from './skillTreeService';
 import socialGraphService from './socialGraphService';
 import timeSeriesService from './timeSeriesService';
 import authService from './authService';
+import authRateLimiter from './middleware/rateLimiter';
 
 const router: Router = express.Router();
 // Internal service routes
@@ -26,6 +27,7 @@ router.post('/auth/register',
   (req: Request, res: Response) => authService.register(req, res)
 );
 router.get('/auth/verify',
+  authRateLimiter,
   validate([
     header('authorization')
       .trim()
@@ -38,6 +40,7 @@ router.get('/auth/verify',
 );
 
 router.post('/auth/refresh',
+  authRateLimiter,
   validate([
     header('authorization')
       .trim()
@@ -73,6 +76,7 @@ router.post('/auth/reset-password',
 
 // OAuth routes
 router.post('/oauth/authorize',
+  authRateLimiter,
   validate([
     body('clientId')
       .trim()
@@ -99,6 +103,7 @@ router.post('/oauth/authorize',
 );
 
 router.post('/oauth/token',
+  authRateLimiter,
   validate([
     body('code')
       .trim()
