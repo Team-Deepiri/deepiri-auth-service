@@ -110,8 +110,7 @@ export const commonValidations = {
       .notEmpty()
       .withMessage(`${field} is required`)
       .isLength({ max: maxLength })
-      .withMessage(`${field} must be less than ${maxLength} characters`)
-      .escape(),
+      .withMessage(`${field} must be less than ${maxLength} characters`),
 
   //URL Validation: only allows HTTP/HTTPS protocols,
   //length limits prevent DoS attacks
