@@ -1,7 +1,20 @@
+import createDOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
+
 /**
  * Input Sanitization Utilities
  * Cleans and sanitizes user inputs to prevent XSS, SQL injection, and NoSQL injection
  */
+
+let sanitizer: ReturnType<typeof createDOMPurify> | null = null;
+
+const getSanitizer = (): ReturnType<typeof createDOMPurify> => {
+  if (!sanitizer) {
+    const window = new JSDOM('').window;
+    sanitizer = createDOMPurify(window);
+  }
+  return sanitizer;
+};
 
 /**
  * Sanitize HTML - Remove dangerous tags and attributes
@@ -12,51 +25,12 @@ export const sanitizeHtml = (input: string): string => {
     return '';
   }
 
-  // Remove script tags and content
-  let sanitized = input.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-
-  // Remove event handlers (onclick, onerror, etc.)
-  sanitized = sanitized.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
-
-  // Apply repeatedly to avoid incomplete multi-character sanitization
-  // where a new on*= fragment can appear after a prior replacement.
-  let previousSanitized: string;
-  do {
-    previousSanitized = sanitized;
-    sanitized = sanitized.replace(/\s*on\w+\s*=\s*[^\s>]*/gi, '');
-  } while (sanitized !== previousSanitized);
-
-  // Remove iframe, object, embed tags
-  let previous: string;
-  do {
-    previous = sanitized;
-    sanitized = sanitized.replace(/<(iframe|object|embed)[^>]*>/gi, '');
-  } while (sanitized !== previous);
-
-  // Remove potentially dangerous HTML attributes
-  sanitized = sanitized.replace(/src\s*=\s*["']javascript:[^"']*["']/gi, '');
-
-  return sanitized.trim();
-};
-
-/**
- * Prevent SQL Injection - Escape SQL special characters
- * Note: Always use parameterized queries instead of string concatenation
- * This is a fallback defense layer
- */
-export const escapeSqlString = (input: string): string => {
-  if (!input || typeof input !== 'string') {
-    return '';
-  }
-
-  // Escape SQL special characters
-  return input
-    .replace(/\\/g, '\\\\')    // Backslash
-    .replace(/'/g, "''")       // Single quote
-    .replace(/"/g, '\\"')      // Double quote
-    .replace(/\x00/g, '\\0')   // Null byte
-    .replace(/\n/g, '\\n')     // Newline
-    .replace(/\r/g, '\\r');    // Carriage return
+  return getSanitizer()
+    .sanitize(input, {
+      USE_PROFILES: { html: true },
+      FORBID_TAGS: ['iframe', 'object', 'embed'],
+    })
+    .trim();
 };
 
 /**
