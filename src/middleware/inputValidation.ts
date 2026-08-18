@@ -62,28 +62,8 @@ const formatValidationError = (err: { path?: string; param?: string; type?: stri
   };
 };
 
-const sanitizeValue = (value: unknown): unknown => {
-  if (typeof value === 'string') {
-    return value.trim();
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeValue(item));
-  }
-
-  if (value && typeof value === 'object') {
-    const sanitizedRecord: Record<string, unknown> = {};
-    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
-      sanitizedRecord[key] = sanitizeValue(nestedValue);
-    }
-    return sanitizedRecord;
-  }
-
-  return value;
-};
-
 const sanitizeRequestObjectInPlace = (target: Record<string, unknown>): void => {
-  const sanitized = sanitizeValue(target);
+  const sanitized = sanitizeObject(target);
 
   if (!sanitized || typeof sanitized !== 'object' || Array.isArray(sanitized)) {
     return;
