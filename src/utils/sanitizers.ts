@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 
 /**
  * Input Sanitization Utilities
- * Cleans and sanitizes user inputs to prevent XSS, SQL injection, and NoSQL injection
+ * Cleans and sanitizes user inputs to prevent XSS and other injection attacks
  */
 
 let sanitizer: ReturnType<typeof createDOMPurify> | null = null;
@@ -31,32 +31,6 @@ export const sanitizeHtml = (input: string): string => {
       FORBID_TAGS: ['iframe', 'object', 'embed'],
     })
     .trim();
-};
-
-/**
- * Prevent NoSQL Injection - Remove dangerous operators
- * Prevents MongoDB operators like {$ne: null} being used maliciously
- */
-export const sanitizeNoSqlInput = (input: any): any => {
-  if (typeof input === 'string') {
-    // Reject strings that look like operators
-    if (input.startsWith('$') || input.startsWith('{') || input.startsWith('[')) {
-      return '';
-    }
-    return input;
-  }
-
-  if (typeof input === 'object' && input !== null) {
-    // If it's an object with $ keys, it's likely an operator - reject it
-    for (const key in input) {
-      if (key.startsWith('$')) {
-        return {};
-      }
-    }
-    return input;
-  }
-
-  return input;
 };
 
 /**
