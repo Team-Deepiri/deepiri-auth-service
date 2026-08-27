@@ -25,6 +25,12 @@ router.post('/auth/register',
   ], { allowedBodyFields: ['email', 'password', 'username'] }),
   (req: Request, res: Response) => authService.register(req, res)
 );
+router.get('/auth/check-email',
+  validate([
+    query('email').trim().notEmpty().isEmail().withMessage('Valid email is required').isLength({ max: 255 }),
+  ], { allowedQueryFields: ['email'] }),
+  (req: Request, res: Response) => authService.checkEmail(req, res)
+);
 router.get('/auth/verify',
   validate([
     header('authorization')

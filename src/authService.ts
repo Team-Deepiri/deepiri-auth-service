@@ -106,6 +106,25 @@ class AuthService {
     }
   }
 
+  async checkEmail(req: Request, res: Response): Promise<void> {
+    try {
+      const email = (req.query.email as string || '').trim().toLowerCase();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        res.status(400).json({ error: 'Valid email is required' });
+        return;
+      }
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser) {
+        res.status(200).json({ available: false, message: 'An account with this email already exists.' });
+        return;
+      }
+      res.status(200).json({ available: true });
+    } catch (error: any) {
+      console.error('Check email error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   async verify(req: Request, res: Response): Promise<void> {
     try {
       const authHeader = req.headers.authorization;
