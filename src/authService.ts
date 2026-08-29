@@ -38,7 +38,7 @@ class AuthService {
       });
 
       const token = jwt.sign(
-        { userId: user.id, email: user.email },
+        { userId: user.id, email: user.email, role: user.role },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -49,7 +49,8 @@ class AuthService {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name
+          name: user.name,
+          role: user.role
         }
       });
     } catch (error: any) {
@@ -86,7 +87,7 @@ class AuthService {
       });
 
       const token = jwt.sign(
-        { userId: user.id, email: user.email },
+        { userId: user.id, email: user.email, role: user.role },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -97,7 +98,8 @@ class AuthService {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name
+          name: user.name,
+          role: user.role
         }
       });
     } catch (error: any) {
@@ -131,7 +133,8 @@ class AuthService {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name
+          name: user.name,
+          role: user.role
         }
       });
     } catch (error: any) {
@@ -159,7 +162,7 @@ class AuthService {
       }
 
       const newToken = jwt.sign(
-        { userId: decoded.userId, email: decoded.email },
+        { userId: user.id, email: user.email, role: user.role },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -170,7 +173,8 @@ class AuthService {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name
+          name: user.name,
+          role: user.role
         }
       });
     } catch (error: any) {
