@@ -10,7 +10,9 @@ import jwt from 'jsonwebtoken';
 import prisma from '../db';
 import { validateSecret } from '@team-deepiri/shared-utils';
 
-const JWT_SECRET = validateSecret('JWT_SECRET', process.env.JWT_SECRET, 32) || '';
+// validateSecret returns the value or throws — a missing/short/weak JWT_SECRET
+// fails the service at startup rather than falling back to a usable key.
+const JWT_SECRET = validateSecret('JWT_SECRET', process.env.JWT_SECRET, 32);
 
 export interface AuthedUser {
   id: string;
@@ -24,22 +26,34 @@ export interface AuthedRequest extends Request {
 }
 
 export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'No token provided' });
+    return;
+  }
+
+  // Token problems -> 401. Kept narrow so a DB failure below can't masquerade
+  // as an auth failure.
+  let decoded: { userId?: string };
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'No token provided' });
-      return;
-    }
+    decoded = jwt.verify(authHeader.substring(7), JWT_SECRET) as { userId?: string };
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+    return;
+  }
+  if (!decoded?.userId) {
+    res.status(401).json({ error: 'Invalid token' });
+    return;
+  }
 
-    const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET) as any;
-    if (!decoded?.userId) {
-      res.status(401).json({ error: 'Invalid token' });
-      return;
-    }
-
+  try {
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-    if (!user || user.status !== 'active') {
+    if (!user) {
       res.status(401).json({ error: 'Invalid token' });
+      return;
+    }
+    if (user.status !== 'active') {
+      res.status(403).json({ error: 'Account is not active' });
       return;
     }
 
@@ -50,8 +64,9 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       role: user.role,
     };
     next();
-  } catch {
-    res.status(401).json({ error: 'Invalid token' });
+  } catch (err) {
+    console.error('authenticate: user lookup failed', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
 
