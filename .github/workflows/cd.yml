@@ -1,0 +1,144 @@
+name: Deepiri CD - deepiri-auth-service
+
+# Keeps deepiri-platform's pinned commit for this service up to date.
+#
+# This repo is NOT part of a monorepo. It stays a standalone repository with its
+# own history and CI. deepiri-platform tracks it as a git submodule -- a single
+# pinned commit SHA. Production deploys run from deepiri-platform's own CD
+# (.github/workflows/cd-cloud-portal.yml), which builds each submodule with
+# docker compose on the VPS. Until now someone bumped that pinned SHA by hand
+# after every merge (see the many `chore/bump-*` branches). This workflow does
+# that one-line bump automatically: on push to `main` it repoints
+# deepiri-platform at the new commit, which triggers the platform deploy.
+#
+# Required repo secret (Settings > Secrets and variables > Actions):
+#   PLATFORM_BUMP_TOKEN
+#     A token allowed to push to Team-Deepiri/deepiri-platform.
+#     Fine-grained PAT:  Repository access = deepiri-platform only,
+#                        Permissions = Contents: Read and write.
+#     (Or a GitHub App installation token with the same scope.)
+#
+# PUSH_MODE below controls the behaviour:
+#   direct - commit straight to platform `main` (merge here == deploy). Default.
+#   pr     - open a PR against platform `main` instead, so a human clicks merge.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '.github/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bump-platform-submodule
+  cancel-in-progress: false
+
+env:
+  PLATFORM_REPO: Team-Deepiri/deepiri-platform
+  PLATFORM_BRANCH: main
+  SUBMODULE_PATH: platform-services/backend/deepiri-auth-service
+  PUSH_MODE: direct
+
+jobs:
+  bump:
+    name: Bump platform submodule
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check token is present
+        run: |
+          if [ -z "${{ secrets.PLATFORM_BUMP_TOKEN }}" ]; then
+            echo "::error::PLATFORM_BUMP_TOKEN is not set. Add it in Settings > Secrets and variables > Actions (see this file's header)."
+            exit 1
+          fi
+
+      - name: Checkout deepiri-platform
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PLATFORM_REPO }}
+          ref: ${{ env.PLATFORM_BRANCH }}
+          token: ${{ secrets.PLATFORM_BUMP_TOKEN }}
+          fetch-depth: 0
+          path: platform
+
+      - name: Compare pinned commit
+        id: bump
+        working-directory: platform
+        run: |
+          set -euo pipefail
+          NEW_SHA="${{ github.sha }}"
+          CURRENT_SHA="$(git ls-tree HEAD "$SUBMODULE_PATH" | awk '{print $3}')"
+          echo "submodule path : $SUBMODULE_PATH"
+          echo "current pinned : ${CURRENT_SHA:-<none>}"
+          echo "new commit     : $NEW_SHA"
+          if [ -z "$CURRENT_SHA" ]; then
+            echo "::error::$SUBMODULE_PATH is not a submodule in $PLATFORM_REPO@$PLATFORM_BRANCH"
+            exit 1
+          fi
+          if [ "$CURRENT_SHA" = "$NEW_SHA" ]; then
+            echo "Already up to date -- nothing to do."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push bump to platform main
+        if: steps.bump.outputs.changed == 'true' && env.PUSH_MODE == 'direct'
+        working-directory: platform
+        run: |
+          set -euo pipefail
+          NEW_SHA="${{ github.sha }}"
+          SHORT="${NEW_SHA:0:12}"
+          SERVICE="${GITHUB_REPOSITORY##*/}"
+          git config user.name  "deepiri-ci"
+          git config user.email "deepiri-ci@users.noreply.github.com"
+          MSG="chore(submodule): bump ${SERVICE} to ${SHORT}
+
+          Auto-bump from ${GITHUB_REPOSITORY}@${NEW_SHA}
+          Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          # Retry loop: another service merging at the same time can land its own
+          # bump first and make our push non-fast-forward. Re-sync and re-apply.
+          for attempt in 1 2 3 4 5; do
+            git fetch origin "$PLATFORM_BRANCH"
+            git reset --hard "origin/$PLATFORM_BRANCH"
+            git update-index --cacheinfo 160000,"$NEW_SHA","$SUBMODULE_PATH"
+            if git diff --cached --quiet; then
+              echo "Someone already bumped to $SHORT. Done."
+              exit 0
+            fi
+            git commit -m "$MSG"
+            if git push origin "HEAD:$PLATFORM_BRANCH"; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt) -- resyncing and retrying."
+            sleep $((attempt * 3))
+          done
+          echo "::error::Could not push submodule bump after 5 attempts."
+          exit 1
+
+      - name: Open PR against platform
+        if: steps.bump.outputs.changed == 'true' && env.PUSH_MODE == 'pr'
+        working-directory: platform
+        env:
+          GH_TOKEN: ${{ secrets.PLATFORM_BUMP_TOKEN }}
+        run: |
+          set -euo pipefail
+          NEW_SHA="${{ github.sha }}"
+          SHORT="${NEW_SHA:0:12}"
+          SERVICE="${GITHUB_REPOSITORY##*/}"
+          BRANCH="auto-bump/${SERVICE}-${SHORT}"
+          git config user.name  "deepiri-ci"
+          git config user.email "deepiri-ci@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git update-index --cacheinfo 160000,"$NEW_SHA","$SUBMODULE_PATH"
+          git commit -m "chore(submodule): bump ${SERVICE} to ${SHORT}"
+          git push -f origin "$BRANCH"
+          gh pr create --repo "$PLATFORM_REPO" --base "$PLATFORM_BRANCH" --head "$BRANCH" \
+            --title "chore(submodule): bump ${SERVICE} to ${SHORT}" \
+            --body "Auto-generated from ${GITHUB_REPOSITORY}@${NEW_SHA}. Merging this deploys the platform." \
+            || echo "PR may already exist for $BRANCH."
