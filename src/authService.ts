@@ -4,7 +4,10 @@ import jwt from 'jsonwebtoken';
 import prisma from './db';
 import { validateSecret } from '@team-deepiri/shared-utils';
 
-const JWT_SECRET = validateSecret('JWT_SECRET', process.env.JWT_SECRET, 32) || '';
+// validateSecret returns the value or throws — the `|| ''` fallback that used
+// to be here could only ever mask a failure by signing tokens with an empty
+// key, which is worse than not starting.
+const JWT_SECRET = validateSecret('JWT_SECRET', process.env.JWT_SECRET, 32);
 
 class AuthService {
   async login(req: Request, res: Response): Promise<void> {
