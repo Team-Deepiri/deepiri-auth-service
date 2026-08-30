@@ -11,12 +11,21 @@ name: Deepiri CD - deepiri-auth-service
 # that one-line bump automatically: on push to `main` it repoints
 # deepiri-platform at the new commit, which triggers the platform deploy.
 #
-# Required repo secret (Settings > Secrets and variables > Actions):
-#   PLATFORM_BUMP_TOKEN
-#     A token allowed to push to Team-Deepiri/deepiri-platform.
-#     Fine-grained PAT:  Repository access = deepiri-platform only,
-#                        Permissions = Contents: Read and write.
-#     (Or a GitHub App installation token with the same scope.)
+# ---------------------------------------------------------------------------
+# Required repo secrets (Settings > Secrets and variables > Actions)
+# ---------------------------------------------------------------------------
+# Auth is a GitHub App owned by the Team-Deepiri org, so it is not tied to any
+# person's account and its key does not expire. Create the App once (Org >
+# Settings > Developer settings > GitHub Apps), give it "Contents: Read and
+# write", install it on the org limited to `deepiri-platform`, then set:
+#
+#   PLATFORM_BUMP_APP_ID   - the App's numeric App ID
+#   PLATFORM_BUMP_APP_KEY  - the App's private key, the full contents of the
+#                            downloaded .pem file (BEGIN/END lines included)
+#
+# Set the same two secrets in every service repo that has this workflow, or
+# add them once as an org-level Actions secret scoped to those repos.
+# ---------------------------------------------------------------------------
 #
 # PUSH_MODE below controls the behaviour:
 #   direct - commit straight to platform `main` (merge here == deploy). Default.
@@ -39,6 +48,7 @@ concurrency:
 
 env:
   PLATFORM_REPO: Team-Deepiri/deepiri-platform
+  PLATFORM_OWNER: Team-Deepiri
   PLATFORM_BRANCH: main
   SUBMODULE_PATH: platform-services/backend/deepiri-auth-service
   PUSH_MODE: direct
@@ -49,19 +59,34 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check token is present
+      - name: Check App credentials are present
+        env:
+          APP_ID: ${{ secrets.PLATFORM_BUMP_APP_ID }}
+          APP_KEY: ${{ secrets.PLATFORM_BUMP_APP_KEY }}
         run: |
-          if [ -z "${{ secrets.PLATFORM_BUMP_TOKEN }}" ]; then
-            echo "::error::PLATFORM_BUMP_TOKEN is not set. Add it in Settings > Secrets and variables > Actions (see this file's header)."
+          missing=
+          [ -n "$APP_ID" ]  || missing="$missing PLATFORM_BUMP_APP_ID"
+          [ -n "$APP_KEY" ] || missing="$missing PLATFORM_BUMP_APP_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repo secret(s):$missing -- add them in Settings > Secrets and variables > Actions (see this file's header)."
             exit 1
           fi
+
+      - name: Mint a short-lived token for deepiri-platform
+        id: apptoken
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.PLATFORM_BUMP_APP_ID }}
+          private-key: ${{ secrets.PLATFORM_BUMP_APP_KEY }}
+          owner: ${{ env.PLATFORM_OWNER }}
+          repositories: deepiri-platform
 
       - name: Checkout deepiri-platform
         uses: actions/checkout@v4
         with:
           repository: ${{ env.PLATFORM_REPO }}
           ref: ${{ env.PLATFORM_BRANCH }}
-          token: ${{ secrets.PLATFORM_BUMP_TOKEN }}
+          token: ${{ steps.apptoken.outputs.token }}
           fetch-depth: 0
           path: platform
 
@@ -94,8 +119,8 @@ jobs:
           NEW_SHA="${{ github.sha }}"
           SHORT="${NEW_SHA:0:12}"
           SERVICE="${GITHUB_REPOSITORY##*/}"
-          git config user.name  "deepiri-ci"
-          git config user.email "deepiri-ci@users.noreply.github.com"
+          git config user.name  "deepiri-ci[bot]"
+          git config user.email "deepiri-ci[bot]@users.noreply.github.com"
           MSG="chore(submodule): bump ${SERVICE} to ${SHORT}
 
           Auto-bump from ${GITHUB_REPOSITORY}@${NEW_SHA}
@@ -125,15 +150,15 @@ jobs:
         if: steps.bump.outputs.changed == 'true' && env.PUSH_MODE == 'pr'
         working-directory: platform
         env:
-          GH_TOKEN: ${{ secrets.PLATFORM_BUMP_TOKEN }}
+          GH_TOKEN: ${{ steps.apptoken.outputs.token }}
         run: |
           set -euo pipefail
           NEW_SHA="${{ github.sha }}"
           SHORT="${NEW_SHA:0:12}"
           SERVICE="${GITHUB_REPOSITORY##*/}"
           BRANCH="auto-bump/${SERVICE}-${SHORT}"
-          git config user.name  "deepiri-ci"
-          git config user.email "deepiri-ci@users.noreply.github.com"
+          git config user.name  "deepiri-ci[bot]"
+          git config user.email "deepiri-ci[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git update-index --cacheinfo 160000,"$NEW_SHA","$SUBMODULE_PATH"
           git commit -m "chore(submodule): bump ${SERVICE} to ${SHORT}"
