@@ -17,7 +17,8 @@ name: Deepiri CD - deepiri-auth-service
 # Auth is a GitHub App owned by the Team-Deepiri org, so it is not tied to any
 # person's account and its key does not expire. Create the App once (Org >
 # Settings > Developer settings > GitHub Apps), give it "Contents: Read and
-# write", install it on the org limited to `deepiri-platform`, then set:
+# write" AND "Pull requests: Read and write", install it on the org limited
+# to `deepiri-platform`, then set:
 #
 #   PLATFORM_BUMP_APP_ID   - the App's numeric App ID
 #   PLATFORM_BUMP_APP_KEY  - the App's private key, the full contents of the
@@ -28,8 +29,11 @@ name: Deepiri CD - deepiri-auth-service
 # ---------------------------------------------------------------------------
 #
 # PUSH_MODE below controls the behaviour:
-#   direct - commit straight to platform `main` (merge here == deploy). Default.
-#   pr     - open a PR against platform `main` instead, so a human clicks merge.
+#   pr     - open a PR against platform `main`; a human merges it to deploy.
+#            This is the working mode for this org. Needs the App to also carry
+#            "Pull requests: Read and write".
+#   direct - push straight to platform `main`. Does NOT work here -- platform
+#            `main` has a ruleset requiring every change to go through a PR.
 
 on:
   push:
@@ -51,7 +55,7 @@ env:
   PLATFORM_OWNER: Team-Deepiri
   PLATFORM_BRANCH: main
   SUBMODULE_PATH: platform-services/backend/deepiri-auth-service
-  PUSH_MODE: direct
+  PUSH_MODE: pr
 
 jobs:
   bump:
@@ -163,7 +167,13 @@ jobs:
           git update-index --cacheinfo 160000,"$NEW_SHA","$SUBMODULE_PATH"
           git commit -m "chore(submodule): bump ${SERVICE} to ${SHORT}"
           git push -f origin "$BRANCH"
+          # Reuse an already-open PR for this branch; otherwise create one. Any
+          # OTHER failure (e.g. the GitHub App is missing "Pull requests: write")
+          # must fail the job -- do NOT swallow it.
+          if gh pr view "$BRANCH" --repo "$PLATFORM_REPO" --json number >/dev/null 2>&1; then
+            echo "PR already open for $BRANCH; force-pushed the updated bump onto it."
+            exit 0
+          fi
           gh pr create --repo "$PLATFORM_REPO" --base "$PLATFORM_BRANCH" --head "$BRANCH" \
             --title "chore(submodule): bump ${SERVICE} to ${SHORT}" \
-            --body "Auto-generated from ${GITHUB_REPOSITORY}@${NEW_SHA}. Merging this deploys the platform." \
-            || echo "PR may already exist for $BRANCH."
+            --body "Auto-generated from ${GITHUB_REPOSITORY}@${NEW_SHA}. Merging this deploys the platform."
