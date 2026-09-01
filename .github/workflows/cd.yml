@@ -167,13 +167,21 @@ jobs:
           git update-index --cacheinfo 160000,"$NEW_SHA","$SUBMODULE_PATH"
           git commit -m "chore(submodule): bump ${SERVICE} to ${SHORT}"
           git push -f origin "$BRANCH"
-          # Reuse an already-open PR for this branch; otherwise create one. Any
-          # OTHER failure (e.g. the GitHub App is missing "Pull requests: write")
-          # must fail the job -- do NOT swallow it.
-          if gh pr view "$BRANCH" --repo "$PLATFORM_REPO" --json number >/dev/null 2>&1; then
+          # Reuse the bump PR for this branch only while it is still OPEN -- a
+          # closed or merged one must not suppress a fresh deploy PR. A genuine
+          # failure (e.g. the App lacks "Pull requests: write") ends with no open
+          # PR and fails the job loudly; a PR that appears between the check and
+          # the create (concurrent run) is tolerated.
+          pr_state="$(gh pr view "$BRANCH" --repo "$PLATFORM_REPO" --json state --jq .state 2>/dev/null || true)"
+          if [ "$pr_state" = "OPEN" ]; then
             echo "PR already open for $BRANCH; force-pushed the updated bump onto it."
-            exit 0
+          elif gh pr create --repo "$PLATFORM_REPO" --base "$PLATFORM_BRANCH" --head "$BRANCH" \
+                 --title "chore(submodule): bump ${SERVICE} to ${SHORT}" \
+                 --body "Auto-generated from ${GITHUB_REPOSITORY}@${NEW_SHA}. Merging this deploys the platform."; then
+            echo "Opened PR for $BRANCH."
+          elif [ "$(gh pr view "$BRANCH" --repo "$PLATFORM_REPO" --json state --jq .state 2>/dev/null || true)" = "OPEN" ]; then
+            echo "A PR for $BRANCH was opened concurrently; nothing to do."
+          else
+            echo "::error::gh pr create failed and no open PR exists for $BRANCH (App missing 'Pull requests: write'?)"
+            exit 1
           fi
-          gh pr create --repo "$PLATFORM_REPO" --base "$PLATFORM_BRANCH" --head "$BRANCH" \
-            --title "chore(submodule): bump ${SERVICE} to ${SHORT}" \
-            --body "Auto-generated from ${GITHUB_REPOSITORY}@${NEW_SHA}. Merging this deploys the platform."
