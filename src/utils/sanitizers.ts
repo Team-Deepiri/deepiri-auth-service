@@ -25,6 +25,13 @@ export const sanitizeHtml = (input: string): string => {
     return '';
   }
 
+  // A string with no '<' cannot open an HTML tag, so there is nothing for DOMPurify
+  // to strip. Running it anyway rewrites content that only looks like markup
+  // (e.g. "a < b" -> "a &lt; b") and can drop text after a stray '<'. Skip it.
+  if (!input.includes('<')) {
+    return input.trim();
+  }
+
   return getSanitizer()
     .sanitize(input, {
       USE_PROFILES: { html: true },
@@ -37,6 +44,23 @@ export const sanitizeHtml = (input: string): string => {
  * Sanitize all fields in an object
  * Applies HTML sanitization to string fields
  */
+// Secret / credential fields must never be run through an HTML sanitizer: DOMPurify
+// can alter or truncate a value that happens to contain '<', silently changing the
+// password/token before it is hashed or compared.
+const SANITIZE_SKIP_KEYS = new Set([
+  'password',
+  'currentpassword',
+  'newpassword',
+  'confirmpassword',
+  'token',
+  'refreshtoken',
+  'accesstoken',
+  'code',
+  'clientsecret',
+  'client_secret',
+  'secret',
+]);
+
 export const sanitizeObject = (obj: any): any => {
   if (typeof obj !== 'object' || obj === null) {
     return obj;
@@ -49,8 +73,10 @@ export const sanitizeObject = (obj: any): any => {
       const value = obj[key];
 
       if (typeof value === 'string') {
-        // Sanitize string values
-        sanitized[key] = sanitizeHtml(value);
+        // Sanitize string values (except credential fields — see SANITIZE_SKIP_KEYS)
+        sanitized[key] = SANITIZE_SKIP_KEYS.has(key.toLowerCase())
+          ? value
+          : sanitizeHtml(value);
       } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         // Recursively sanitize nested objects
         sanitized[key] = sanitizeObject(value);
