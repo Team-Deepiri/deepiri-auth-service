@@ -4,6 +4,9 @@ import jwt from 'jsonwebtoken';
 import prisma from './db';
 import { validateSecret } from '@team-deepiri/shared-utils';
 
+// validateSecret returns the value or throws — the `|| ''` fallback that used
+// to be here could only ever mask a failure by signing tokens with an empty
+// key, which is worse than not starting.
 const JWT_SECRET = validateSecret('JWT_SECRET', process.env.JWT_SECRET, 32);
 
 class AuthService {
@@ -38,7 +41,7 @@ class AuthService {
       });
 
       const token = jwt.sign(
-        { userId: user.id, email: user.email },
+        { userId: user.id, email: user.email, role: user.role },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -49,7 +52,8 @@ class AuthService {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name
+          name: user.name,
+          role: user.role
         }
       });
     } catch (error: any) {
@@ -86,7 +90,7 @@ class AuthService {
       });
 
       const token = jwt.sign(
-        { userId: user.id, email: user.email },
+        { userId: user.id, email: user.email, role: user.role },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -97,7 +101,8 @@ class AuthService {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name
+          name: user.name,
+          role: user.role
         }
       });
     } catch (error: any) {
@@ -131,7 +136,8 @@ class AuthService {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name
+          name: user.name,
+          role: user.role
         }
       });
     } catch (error: any) {
@@ -159,7 +165,7 @@ class AuthService {
       }
 
       const newToken = jwt.sign(
-        { userId: decoded.userId, email: decoded.email },
+        { userId: user.id, email: user.email, role: user.role },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -170,7 +176,8 @@ class AuthService {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name
+          name: user.name,
+          role: user.role
         }
       });
     } catch (error: any) {
