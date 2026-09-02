@@ -8,8 +8,8 @@ const logger = createLogger('deepiri-auth-service');
 const prisma = new PrismaClient({
   log: [
     { level: 'query', emit: 'event' },
-    { level: 'error', emit: 'stdout' },
-    { level: 'warn', emit: 'stdout' },
+    { level: 'error', emit: 'event' },
+    { level: 'warn', emit: 'event' },
   ],
 });
 
@@ -19,6 +19,34 @@ if (process.env.NODE_ENV === 'development') {
     logger.debug('Query:', { query: e.query, duration: `${e.duration}ms` });
   });
 }
+
+prisma.$on('warn' as never, (event: any) => {
+  logger.warn('Prisma warning', {
+    message: event.message,
+    target: event.target,
+  });
+});
+
+prisma.$on('error' as never, (event: any) => {
+  const message = String(event.message || '');
+  const isExpectedRestartInterruption =
+    message.includes('terminating connection due to administrator command') ||
+    message.includes('SqlState(E57P01)') ||
+    message.includes('code: SqlState(E57P01)');
+
+  if (isExpectedRestartInterruption) {
+    logger.warn('Prisma connection interrupted during database restart', {
+      message,
+      target: event.target,
+    });
+    return;
+  }
+
+  logger.error('Prisma client error', {
+    message,
+    target: event.target,
+  });
+});
 
 // Connect to database
 export async function connectDatabase() {
