@@ -19,6 +19,10 @@ model User {
   avatarUrl     String?  @map("avatar_url") @db.Text
   bio           String?  @db.Text
   status        String   @default("active") @db.VarChar(50)
+  // Portal RBAC. One role per user. Team roles (ai_ml, qa_support,
+  // software_developer, it) are self-selectable; leadership/admin are granted by
+  // an admin/owner via PUT /users/:id/role; owner is set in the database only.
+  role          String   @default("member") @db.VarChar(50)
   emailVerified Boolean  @default(false) @map("email_verified")
   lastLoginAt   DateTime? @map("last_login_at") @db.Timestamp
   metadata      Json?    @default("{}")
@@ -37,6 +41,7 @@ model User {
 
   @@index([email])
   @@index([status])
+  @@index([role])
   @@map("users")
 }
 

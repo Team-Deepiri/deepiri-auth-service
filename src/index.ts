@@ -7,6 +7,8 @@ import skillTreeService from './skillTreeService';
 import socialGraphService from './socialGraphService';
 import timeSeriesService from './timeSeriesService';
 import authService from './authService';
+import usersService from './usersService';
+import { authenticate, requireRole } from './middleware/auth';
 
 const router: Router = express.Router();
 // Internal service routes
@@ -215,6 +217,35 @@ router.get('/time-series/:userId',
     query('endDate').optional().trim().isISO8601().withMessage('Invalid end date format')
   ], { allowedQueryFields: ['metric', 'startDate', 'endDate'] }),
   (req: Request, res: Response) => timeSeriesService.getData(req, res)
+);
+
+// Portal user routes (directory / profile / role management).
+// Reached via the gateway as /api/users/* -> rewritten to /users/*.
+router.get('/users', authenticate, (req: Request, res: Response) => usersService.list(req, res));
+
+router.get('/users/profile', authenticate, (req: Request, res: Response) => usersService.getProfile(req, res));
+
+router.put('/users/profile',
+  authenticate,
+  validate([
+    body('name').optional().isString().trim().isLength({ max: 255 }).withMessage('name too long'),
+    body('email').optional().isString().trim().isEmail().withMessage('invalid email').isLength({ max: 255 }),
+    body('avatarUrl').optional().isString().isLength({ max: 200_000 }).withMessage('avatarUrl too long'),
+    body('bio').optional().isString().isLength({ max: 5000 }).withMessage('bio too long'),
+    body('metadata').optional().isObject().withMessage('metadata must be an object'),
+    body('role').optional().isString().trim().isLength({ max: 40 }),
+  ], { allowedBodyFields: ['name', 'email', 'avatarUrl', 'bio', 'metadata', 'role'] }),
+  (req: Request, res: Response) => usersService.updateProfile(req, res)
+);
+
+router.put('/users/:id/role',
+  authenticate,
+  requireRole('owner', 'admin'),
+  validate([
+    param('id').isUUID().withMessage('Invalid user ID format'),
+    body('role').isString().trim().notEmpty().withMessage('role is required').isLength({ max: 40 }),
+  ], { allowedBodyFields: ['role'] }),
+  (req: Request, res: Response) => usersService.setRole(req, res)
 );
 
 export default router;
