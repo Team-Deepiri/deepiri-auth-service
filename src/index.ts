@@ -7,6 +7,7 @@ import skillTreeService from './skillTreeService';
 import socialGraphService from './socialGraphService';
 import timeSeriesService from './timeSeriesService';
 import authService from './authService';
+import authRateLimiter, { strictAuthRateLimiter } from './middleware/rateLimiter';
 import usersService from './usersService';
 import { authenticate, requireRole } from './middleware/auth';
 
@@ -15,11 +16,13 @@ const router: Router = express.Router();
 router.use('/internal', internalRoutes);
 // Auth routes
 router.post('/auth/login',
+  strictAuthRateLimiter,
   validate([commonValidations.email, commonValidations.password], { allowedBodyFields: ['email', 'password'] }),
   (req: Request, res: Response) => authService.login(req, res)
 );
 
 router.post('/auth/register',
+  strictAuthRateLimiter,
   validate([
     commonValidations.email,
     commonValidations.password,
@@ -40,6 +43,7 @@ router.get('/auth/verify',
 );
 
 router.post('/auth/refresh',
+  authRateLimiter,
   validate([
     header('authorization')
       .trim()
@@ -61,11 +65,13 @@ router.post('/auth/logout',
 );
 
 router.post('/auth/forgot-password',
+  strictAuthRateLimiter,
   validate([commonValidations.email], { allowedBodyFields: ['email'] }),
   (req: Request, res: Response) => authService.forgotPassword(req, res)
 );
 
 router.post('/auth/reset-password',
+  strictAuthRateLimiter,
   validate([
     commonValidations.string('token', 1000),
     commonValidations.password
@@ -75,6 +81,7 @@ router.post('/auth/reset-password',
 
 // OAuth routes
 router.post('/oauth/authorize',
+  authRateLimiter,
   validate([
     body('clientId')
       .trim()
@@ -101,6 +108,7 @@ router.post('/oauth/authorize',
 );
 
 router.post('/oauth/token',
+  authRateLimiter,
   validate([
     body('code')
       .trim()

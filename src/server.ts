@@ -13,6 +13,12 @@ dotenv.config();
 const app: Express = express();
 const PORT: number = parseInt(process.env.PORT || '5001', 10);
 
+// auth-service runs behind the api-gateway (and, in prod, an ingress). Without this,
+// express-rate-limit keys every request on the immediate socket peer -- i.e. the
+// gateway's IP -- so a single lenient bucket is shared by the entire platform.
+// TRUST_PROXY_HOPS = number of trusted proxies in front of this service.
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 1));
+
 // Middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }

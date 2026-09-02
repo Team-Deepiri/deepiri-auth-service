@@ -1,7 +1,20 @@
+import createDOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
+
 /**
  * Input Sanitization Utilities
- * Cleans and sanitizes user inputs to prevent XSS, SQL injection, and NoSQL injection
+ * Cleans and sanitizes user inputs to prevent XSS and other injection attacks
  */
+
+let sanitizer: ReturnType<typeof createDOMPurify> | null = null;
+
+const getSanitizer = (): ReturnType<typeof createDOMPurify> => {
+  if (!sanitizer) {
+    const window = new JSDOM('').window;
+    sanitizer = createDOMPurify(window);
+  }
+  return sanitizer;
+};
 
 /**
  * Sanitize HTML - Remove dangerous tags and attributes
@@ -12,72 +25,42 @@ export const sanitizeHtml = (input: string): string => {
     return '';
   }
 
-  // Remove script tags and content
-  let sanitized = input.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-
-  // Remove event handlers (onclick, onerror, etc.)
-  sanitized = sanitized.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
-  sanitized = sanitized.replace(/\s*on\w+\s*=\s*[^\s>]*/gi, '');
-
-  // Remove iframe, object, embed tags
-  sanitized = sanitized.replace(/<(iframe|object|embed)[^>]*>/gi, '');
-
-  // Remove potentially dangerous HTML attributes
-  sanitized = sanitized.replace(/src\s*=\s*["']javascript:[^"']*["']/gi, '');
-
-  return sanitized.trim();
-};
-
-/**
- * Prevent SQL Injection - Escape SQL special characters
- * Note: Always use parameterized queries instead of string concatenation
- * This is a fallback defense layer
- */
-export const escapeSqlString = (input: string): string => {
-  if (!input || typeof input !== 'string') {
-    return '';
+  // A string with no '<' cannot open an HTML tag, so there is nothing for DOMPurify
+  // to strip. Running it anyway rewrites content that only looks like markup
+  // (e.g. "a < b" -> "a &lt; b") and can drop text after a stray '<'. Skip it.
+  if (!input.includes('<')) {
+    return input.trim();
   }
 
-  // Escape SQL special characters
-  return input
-    .replace(/\\/g, '\\\\')    // Backslash
-    .replace(/'/g, "''")       // Single quote
-    .replace(/"/g, '\\"')      // Double quote
-    .replace(/\x00/g, '\\0')   // Null byte
-    .replace(/\n/g, '\\n')     // Newline
-    .replace(/\r/g, '\\r');    // Carriage return
-};
-
-/**
- * Prevent NoSQL Injection - Remove dangerous operators
- * Prevents MongoDB operators like {$ne: null} being used maliciously
- */
-export const sanitizeNoSqlInput = (input: any): any => {
-  if (typeof input === 'string') {
-    // Reject strings that look like operators
-    if (input.startsWith('$') || input.startsWith('{') || input.startsWith('[')) {
-      return '';
-    }
-    return input;
-  }
-
-  if (typeof input === 'object' && input !== null) {
-    // If it's an object with $ keys, it's likely an operator - reject it
-    for (const key in input) {
-      if (key.startsWith('$')) {
-        return {};
-      }
-    }
-    return input;
-  }
-
-  return input;
+  return getSanitizer()
+    .sanitize(input, {
+      USE_PROFILES: { html: true },
+      FORBID_TAGS: ['iframe', 'object', 'embed'],
+    })
+    .trim();
 };
 
 /**
  * Sanitize all fields in an object
  * Applies HTML sanitization to string fields
  */
+// Secret / credential fields must never be run through an HTML sanitizer: DOMPurify
+// can alter or truncate a value that happens to contain '<', silently changing the
+// password/token before it is hashed or compared.
+const SANITIZE_SKIP_KEYS = new Set([
+  'password',
+  'currentpassword',
+  'newpassword',
+  'confirmpassword',
+  'token',
+  'refreshtoken',
+  'accesstoken',
+  'code',
+  'clientsecret',
+  'client_secret',
+  'secret',
+]);
+
 export const sanitizeObject = (obj: any): any => {
   if (typeof obj !== 'object' || obj === null) {
     return obj;
@@ -90,8 +73,10 @@ export const sanitizeObject = (obj: any): any => {
       const value = obj[key];
 
       if (typeof value === 'string') {
-        // Sanitize string values
-        sanitized[key] = sanitizeHtml(value);
+        // Sanitize string values (except credential fields — see SANITIZE_SKIP_KEYS)
+        sanitized[key] = SANITIZE_SKIP_KEYS.has(key.toLowerCase())
+          ? value
+          : sanitizeHtml(value);
       } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         // Recursively sanitize nested objects
         sanitized[key] = sanitizeObject(value);

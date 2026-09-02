@@ -1,0 +1,28 @@
+# Normalize line endings in the repository to LF.
+#
+# This repo had mixed endings: some files stored CRLF, some LF. That makes a
+# whole-file rewrite indistinguishable from a real edit — a 5-line change to
+# src/server.ts showed up as 2,573 changed lines, which hides the actual change
+# from review. Any tool that reads and rewrites a file (an editor with a
+# different default, a script, a formatter) silently flips the whole file.
+#
+# text=auto eol=lf stores LF in Git and checks out LF everywhere. This service
+# runs in a Linux container, so LF is also what it executes with.
+* text=auto eol=lf
+
+# Windows-native scripts must keep CRLF to remain runnable on Windows.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Never touch binaries — normalization would corrupt them.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
